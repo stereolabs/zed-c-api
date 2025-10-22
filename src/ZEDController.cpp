@@ -60,30 +60,32 @@ sl::float3 ZEDController::getGravityEstimation() {
     return mesh.getGravityEstimate();
 }
 
-static void copy_init_parameters(sl::InitParameters & sdk_parmeters, SL_InitParameters* init_parameters, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path)
+static void copy_init_parameters(sl::InitParameters & sdk_parameters, SL_InitParameters* init_parameters, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path)
 {
-    sdk_parmeters.camera_resolution = (sl::RESOLUTION)init_parameters->resolution;
-    sdk_parmeters.camera_fps = init_parameters->camera_fps;
-    sdk_parmeters.depth_minimum_distance = init_parameters->depth_minimum_distance;
-    sdk_parmeters.depth_mode = (sl::DEPTH_MODE)init_parameters->depth_mode;
-    sdk_parmeters.coordinate_system = (sl::COORDINATE_SYSTEM)init_parameters->coordinate_system;
-    sdk_parmeters.coordinate_units = (sl::UNIT)init_parameters->coordinate_unit;
-    sdk_parmeters.camera_image_flip = init_parameters->camera_image_flip;
-    sdk_parmeters.camera_disable_self_calib = init_parameters->camera_disable_self_calib;
-    sdk_parmeters.enable_right_side_measure = init_parameters->enable_right_side_measure;
-    sdk_parmeters.depth_stabilization = init_parameters->depth_stabilization;
-    sdk_parmeters.sdk_verbose_log_file = output_file;
-    sdk_parmeters.sdk_verbose = init_parameters->sdk_verbose;
-    sdk_parmeters.optional_settings_path = opt_settings_path;
-    sdk_parmeters.sensors_required = init_parameters->sensors_required;
-    sdk_parmeters.enable_image_enhancement = init_parameters->enable_image_enhancement;
-    sdk_parmeters.depth_maximum_distance = init_parameters->depth_maximum_distance;
-    sdk_parmeters.optional_opencv_calibration_file = opencv_calib_path;
-    sdk_parmeters.open_timeout_sec = init_parameters->open_timeout_sec;
-    sdk_parmeters.async_grab_camera_recovery = init_parameters->async_grab_camera_recovery;
-    sdk_parmeters.grab_compute_capping_fps = init_parameters->grab_compute_capping_fps;
-    sdk_parmeters.enable_image_validity_check = init_parameters->enable_image_validity_check;
-    sdk_parmeters.maximum_working_resolution = sl::Resolution(init_parameters->maximum_working_resolution.width, init_parameters->maximum_working_resolution.height);
+    sdk_parameters.camera_resolution = (sl::RESOLUTION)init_parameters->resolution;
+    sdk_parameters.camera_fps = init_parameters->camera_fps;
+    sdk_parameters.svo_real_time_mode = init_parameters->svo_real_time_mode;
+    sdk_parameters.depth_minimum_distance = init_parameters->depth_minimum_distance;
+    sdk_parameters.depth_mode = (sl::DEPTH_MODE)init_parameters->depth_mode;
+    sdk_parameters.coordinate_system = (sl::COORDINATE_SYSTEM)init_parameters->coordinate_system;
+    sdk_parameters.coordinate_units = (sl::UNIT)init_parameters->coordinate_unit;
+    sdk_parameters.camera_image_flip = init_parameters->camera_image_flip;
+    sdk_parameters.camera_disable_self_calib = init_parameters->camera_disable_self_calib;
+    sdk_parameters.enable_right_side_measure = init_parameters->enable_right_side_measure;
+    sdk_parameters.depth_stabilization = init_parameters->depth_stabilization;
+    sdk_parameters.sdk_verbose_log_file = output_file;
+    sdk_parameters.sdk_verbose = init_parameters->sdk_verbose;
+    sdk_parameters.sdk_gpu_id = init_parameters->sdk_gpu_id;
+    sdk_parameters.optional_settings_path = opt_settings_path;
+    sdk_parameters.sensors_required = init_parameters->sensors_required;
+    sdk_parameters.enable_image_enhancement = init_parameters->enable_image_enhancement;
+    sdk_parameters.depth_maximum_distance = init_parameters->depth_maximum_distance;
+    sdk_parameters.optional_opencv_calibration_file = opencv_calib_path;
+    sdk_parameters.open_timeout_sec = init_parameters->open_timeout_sec;
+    sdk_parameters.async_grab_camera_recovery = init_parameters->async_grab_camera_recovery;
+    sdk_parameters.grab_compute_capping_fps = init_parameters->grab_compute_capping_fps;
+    sdk_parameters.enable_image_validity_check = init_parameters->enable_image_validity_check;
+    sdk_parameters.maximum_working_resolution = sl::Resolution(init_parameters->maximum_working_resolution.width, init_parameters->maximum_working_resolution.height);
 }
 
 int ZEDController::initFromUSB(SL_InitParameters *params, const unsigned int serial_number, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
