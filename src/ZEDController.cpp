@@ -60,7 +60,7 @@ sl::float3 ZEDController::getGravityEstimation() {
     return mesh.getGravityEstimate();
 }
 
-static void copy_init_parameters(sl::InitParameters & sdk_parameters, SL_InitParameters* init_parameters, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path)
+static void copy_init_parameters(sl::InitParameters& sdk_parameters, SL_InitParameters* init_parameters, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path)
 {
     sdk_parameters.camera_resolution = (sl::RESOLUTION)init_parameters->resolution;
     sdk_parameters.camera_fps = init_parameters->camera_fps;
@@ -160,7 +160,7 @@ int ZEDController::initFromGMSL(SL_InitParameters* params, const unsigned int se
     copy_init_parameters(initParams, params, output_file, opt_settings_path, opencv_calib_path);
 
     if (serial_number > 0) {
-        initParams.input.setFromSerialNumber(serial_number, sl::BUS_TYPE::GMSL);
+        initParams.input.setFromSerialNumber(serial_number);
     }
     else {
         initParams.input.setFromCameraID(params->camera_device_id, sl::BUS_TYPE::GMSL);
@@ -180,7 +180,7 @@ int ZEDController::initFromLive(SL_InitParameters* params, const unsigned int se
     sprintf(buffer_verbose, "ENTER ZEDController::initFromLive %d = %d", params->camera_device_id, camera_ID);
     copy_init_parameters(initParams, params, output_file, opt_settings_path, opencv_calib_path);
     if (serial_number > 0) {
-        initParams.input.setFromSerialNumber(serial_number, sl::BUS_TYPE::AUTO);
+        initParams.input.setFromSerialNumber(serial_number);
     }
     else {
         initParams.input.setFromCameraID(params->camera_device_id, sl::BUS_TYPE::AUTO);
@@ -605,6 +605,122 @@ sl::ERROR_CODE ZEDController::getSensorsData(SL_SensorsData *sensorData, int tim
     return sl::ERROR_CODE::FAILURE;
 }
 
+sl::ERROR_CODE ZEDController::getSensorsDataBatchCount(int* count)
+{
+	if (!isNull()) {
+		sl::ERROR_CODE err = zed.getSensorsDataBatch(sensorsDataBatch);
+		if (err == sl::ERROR_CODE::SUCCESS) {
+			*count = sensorsDataBatch.size();
+            isSensorsBatchReady = true;
+			return err;
+		}
+		*count = 0;
+		return err;
+	}
+    return sl::ERROR_CODE::FAILURE;
+}
+
+sl::ERROR_CODE ZEDController::getSensorsDataBatch(SL_SensorsData** data)
+{
+    if (!isNull())
+    {
+        if (isSensorsBatchReady)
+        {
+            int size = sensorsDataBatch.size();
+             
+            memset(*data, 0, sizeof(SL_SensorsData) * size);
+
+            for (int i = 0; i < size; i++) 
+            {
+
+                SL_SensorsData* sensorData = data[i];
+                sl::SensorsData tmp_sensor_data = sensorsDataBatch[i];
+
+                sensorData->camera_moving_state = (int) tmp_sensor_data.camera_moving_state;
+                sensorData->image_sync_trigger = tmp_sensor_data.image_sync_trigger;
+
+                ///// IMU ///////
+                sensorData->imu.is_available = tmp_sensor_data.imu.is_available;
+                sensorData->imu.timestamp_ns = tmp_sensor_data.imu.timestamp;
+
+                sensorData->imu.angular_velocity.x = tmp_sensor_data.imu.angular_velocity.x;
+                sensorData->imu.angular_velocity.y = tmp_sensor_data.imu.angular_velocity.y;
+                sensorData->imu.angular_velocity.z = tmp_sensor_data.imu.angular_velocity.z;
+                sensorData->imu.angular_velocity_unc.x = tmp_sensor_data.imu.angular_velocity_uncalibrated.x;
+                sensorData->imu.angular_velocity_unc.y = tmp_sensor_data.imu.angular_velocity_uncalibrated.y;
+                sensorData->imu.angular_velocity_unc.z = tmp_sensor_data.imu.angular_velocity_uncalibrated.z;
+
+                sensorData->imu.linear_acceleration.x = tmp_sensor_data.imu.linear_acceleration.x;
+                sensorData->imu.linear_acceleration.y = tmp_sensor_data.imu.linear_acceleration.y;
+                sensorData->imu.linear_acceleration.z = tmp_sensor_data.imu.linear_acceleration.z;
+                sensorData->imu.linear_acceleration_unc.x = tmp_sensor_data.imu.linear_acceleration_uncalibrated.x;
+                sensorData->imu.linear_acceleration_unc.y = tmp_sensor_data.imu.linear_acceleration_uncalibrated.y;
+                sensorData->imu.linear_acceleration_unc.z = tmp_sensor_data.imu.linear_acceleration_uncalibrated.z;
+
+                sensorData->imu.orientation.x = tmp_sensor_data.imu.pose.getOrientation().x;
+                sensorData->imu.orientation.y = tmp_sensor_data.imu.pose.getOrientation().y;
+                sensorData->imu.orientation.z = tmp_sensor_data.imu.pose.getOrientation().z;
+                sensorData->imu.orientation.w = tmp_sensor_data.imu.pose.getOrientation().w;
+
+                for (int i = 0; i < 9; i++) {
+                    sensorData->imu.angular_velocity_convariance.p[i] = tmp_sensor_data.imu.angular_velocity_covariance.r[i];
+                    sensorData->imu.linear_acceleration_convariance.p[i] = tmp_sensor_data.imu.linear_acceleration_covariance.r[i];
+                    sensorData->imu.orientation_covariance.p[i] = tmp_sensor_data.imu.pose_covariance.r[i];
+                }
+
+                ///Barometer
+                sensorData->barometer.is_available = tmp_sensor_data.barometer.is_available;
+                sensorData->barometer.timestamp_ns = tmp_sensor_data.barometer.timestamp;
+                sensorData->barometer.pressure = tmp_sensor_data.barometer.pressure;
+                sensorData->barometer.relative_altitude = tmp_sensor_data.barometer.relative_altitude;
+
+                ///Magneto
+                sensorData->magnetometer.is_available = tmp_sensor_data.magnetometer.is_available;
+                sensorData->magnetometer.timestamp_ns = tmp_sensor_data.magnetometer.timestamp;
+                sensorData->magnetometer.magnetic_field_unc.x = tmp_sensor_data.magnetometer.magnetic_field_uncalibrated.x;
+                sensorData->magnetometer.magnetic_field_unc.y = tmp_sensor_data.magnetometer.magnetic_field_uncalibrated.y;
+                sensorData->magnetometer.magnetic_field_unc.z = tmp_sensor_data.magnetometer.magnetic_field_uncalibrated.z;
+                sensorData->magnetometer.magnetic_field_c.x = tmp_sensor_data.magnetometer.magnetic_field_calibrated.x;
+                sensorData->magnetometer.magnetic_field_c.y = tmp_sensor_data.magnetometer.magnetic_field_calibrated.y;
+                sensorData->magnetometer.magnetic_field_c.z = tmp_sensor_data.magnetometer.magnetic_field_calibrated.z;
+                sensorData->magnetometer.effective_rate = tmp_sensor_data.magnetometer.effective_rate;
+                sensorData->magnetometer.magnetic_heading = tmp_sensor_data.magnetometer.magnetic_heading;
+                sensorData->magnetometer.magnetic_heading_state = (SL_HEADING_STATE)tmp_sensor_data.magnetometer.magnetic_heading_state;
+                sensorData->magnetometer.magnetic_heading_accuracy = tmp_sensor_data.magnetometer.magnetic_heading_accuracy;
+
+                ///Temperature
+                sensorData->temperature.barometer_temp = -100.f;
+                sensorData->temperature.imu_temp = -100.f;
+                sensorData->temperature.onboard_left_temp = -100.f;
+                sensorData->temperature.onboard_right_temp = -100.f;
+                if (tmp_sensor_data.temperature.temperature_map.count(sl::SensorsData::TemperatureData::SENSOR_LOCATION::IMU) > 0)
+                    sensorData->temperature.imu_temp = tmp_sensor_data.temperature.temperature_map[sl::SensorsData::TemperatureData::SENSOR_LOCATION::IMU];
+                if (tmp_sensor_data.temperature.temperature_map.count(sl::SensorsData::TemperatureData::SENSOR_LOCATION::BAROMETER) > 0)
+                    sensorData->temperature.barometer_temp = tmp_sensor_data.temperature.temperature_map[sl::SensorsData::TemperatureData::SENSOR_LOCATION::BAROMETER];
+                if (tmp_sensor_data.temperature.temperature_map.count(sl::SensorsData::TemperatureData::SENSOR_LOCATION::ONBOARD_LEFT) > 0)
+                    sensorData->temperature.onboard_left_temp = tmp_sensor_data.temperature.temperature_map[sl::SensorsData::TemperatureData::SENSOR_LOCATION::ONBOARD_LEFT];
+                if (tmp_sensor_data.temperature.temperature_map.count(sl::SensorsData::TemperatureData::SENSOR_LOCATION::ONBOARD_RIGHT) > 0)
+                    sensorData->temperature.onboard_right_temp = tmp_sensor_data.temperature.temperature_map[sl::SensorsData::TemperatureData::SENSOR_LOCATION::ONBOARD_RIGHT];
+
+                char buffers[256];
+                sprintf(buffers, "internal sensors %f\n", sensorData->temperature.onboard_right_temp);
+            }
+            // Clear the batch after retrieval
+            isSensorsBatchReady = false;
+
+            return sl::ERROR_CODE::SUCCESS;
+        }
+        else 
+        {
+            char buffers[256];
+            sprintf(buffers, "getSensorsDataBatch called but no data available");
+            return sl::ERROR_CODE::FAILURE;
+        }
+    }
+
+    return sl::ERROR_CODE::CAMERA_NOT_DETECTED;
+}
+
 sl::ERROR_CODE ZEDController::grab(SL_RuntimeParameters *runtimeParameters) {
     if (!isNull()) {
         sl::ERROR_CODE err = sl::ERROR_CODE::FAILURE;
@@ -734,7 +850,6 @@ sl::ERROR_CODE ZEDController::retrieveSVOData(char* key, int nb_data, struct SL_
         if (isSVODataReady)
         {
             int idx = 0;
-            *data = (SL_SVOData*)malloc(sizeof(SL_SVOData) * nb_data);
             for (auto const& sdk_svo_data : currentSVOData)
             {
                 if (idx < nb_data)
@@ -1112,6 +1227,7 @@ int ZEDController::getPositionalTrackingLandmarks2d(SL_Landmark2D** landmarks, u
                 sl::uint2 position = sdk_landmark.image_position;
                 (*landmarks)[idx].image_position.x = position.x;
                 (*landmarks)[idx].image_position.y = position.y;
+                (*landmarks)[idx].dynamic_confidence = sdk_landmark.dynamic_confidence;
 
                 idx++;
             }

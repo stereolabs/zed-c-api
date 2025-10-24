@@ -55,9 +55,6 @@
 #define _WIN32_WINNT 0x400
 #endif
 #include <windows.h>
-#else
-#include <usb.h>
-
 #endif
 
 #include "sl/c_api/types_c.h"
@@ -76,6 +73,11 @@ extern "C" {
     /*
     Utils functions
      */
+
+    INTERFACE_API void sl_free(void* ptr)
+    {
+        free(ptr);
+    }
 
     INTERFACE_API void sl_unload_all_instances() {
         for (int i = 0; i < MAX_CAMERA_PLUGIN; i++)
@@ -109,6 +111,9 @@ extern "C" {
         }
         else if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::STREAM) {
             err = ZEDController::get(id)->initFromStream(init_parameters, ip, stream_port, output_file, opt_settings_path, opencv_calib_path);
+        }
+        else if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::GMSL) {
+            err = ZEDController::get(id)->initFromGMSL(init_parameters, serial_number, output_file, opt_settings_path, opencv_calib_path);
         }
         else
         {
@@ -315,6 +320,7 @@ extern "C" {
         for (int i = 0; i < devices.size(); i++) {
             if (i < MAX_CAMERA_PLUGIN) {
                 SL_DeviceProperties device;
+				memset(&device, 0, sizeof(SL_DeviceProperties));
                 device.camera_model = (SL_MODEL)devices[i].camera_model;
                 device.camera_state = (SL_CAMERA_STATE)devices[i].camera_state;
                 device.id = devices[i].id;
@@ -323,18 +329,10 @@ extern "C" {
                 device.i2c_port = devices[i].i2c_port;
 				device.sensor_address_left = devices[i].sensor_address_left;
 				device.sensor_address_right = devices[i].sensor_address_right;
-                memcpy(device.path, devices[i].path, 512 * sizeof(char));
-
-                device.camera_badge = (char*)malloc(devices[i].camera_badge.size() + 1);
-                strncpy(device.camera_badge, devices[i].camera_badge.c_str(), devices[i].camera_badge.size());
-                device.camera_badge[devices[i].camera_badge.size()] = '\0';
-
-                device.camera_sensor_model = (char*)malloc(devices[i].camera_sensor_model.size() + 1);
-                strncpy(device.camera_sensor_model, devices[i].camera_sensor_model.c_str(), devices[i].camera_sensor_model.size());
-                device.camera_sensor_model[devices[i].camera_sensor_model.size()] = '\0';
-                device.camera_name = (char*)malloc(devices[i].camera_name.size() + 1);
-                strncpy(device.camera_sensor_model, devices[i].camera_name.c_str(), devices[i].camera_name.size());
-                device.camera_name[devices[i].camera_name.size()] = '\0';
+                memcpy(device.path, devices[i].path, sizeof(device.path));
+                strncpy(device.camera_badge, devices[i].camera_badge.c_str(), std::min((int)devices[i].camera_badge.size(), 128));
+                strncpy(device.camera_sensor_model, devices[i].camera_sensor_model.c_str(), std::min((int)devices[i].camera_sensor_model.size(), 128));
+                strncpy(device.camera_name, devices[i].camera_name.c_str(), std::min((int)devices[i].camera_name.size(), 128));
 
                 memcpy(&device.identifier[0], &devices[i].identifier, sizeof(unsigned char) * 3);
 
@@ -817,6 +815,22 @@ extern "C" {
             return (int)sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
     }
 
+    INTERFACE_API int sl_get_sensors_data_batch_count(int camera_id, int* count)
+	{
+		if (!ZEDController::get(camera_id)->isNull())
+			return (int)ZEDController::get(camera_id)->getSensorsDataBatchCount(count);
+		else
+			return (int)sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
+	}
+
+    INTERFACE_API int sl_get_sensors_data_batch(int camera_id, SL_SensorsData** data)
+    {
+		if (!ZEDController::get(camera_id)->isNull())
+			return (int)ZEDController::get(camera_id)->getSensorsDataBatch(data);
+		else
+			return (int)sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
+    }
+
     INTERFACE_API int sl_reset_positional_tracking(int c_id, SL_Quaternion rotation, SL_Vector3 translation) {
         if (!ZEDController::get(c_id)->isNull())
             return (int)ZEDController::get(c_id)->resetTracking(rotation, translation);
@@ -1190,11 +1204,17 @@ extern "C" {
     }
 
     INTERFACE_API int sl_generate_unique_id(char* id) {
-
         sl::String sdk_id = sl::generate_unique_id();
+        ///* error */ memcpy(id, sdk_id.c_str(), sdk_id.size() * sizeof(char));
+        /* works */ memcpy(id, sdk_id.c_str(), (sdk_id.size()+1) * sizeof(char));
+        return sdk_id.size();
+    }
 
-        memcpy(id, sdk_id.c_str(), sdk_id.size() * sizeof(char));
-
+    INTERFACE_API int sl_generate_unique_id_str(char* id) {        
+        sl::String sdk_id_sl = sl::generate_unique_id();
+        std::string sdk_id(sdk_id_sl.c_str());
+        ///* error */ memcpy(id, sdk_id.c_str(), sdk_id.size() * sizeof(char));
+        /* works */ memcpy(id, sdk_id.c_str(), (sdk_id.size()+1) * sizeof(char));
         return sdk_id.size();
     }
 

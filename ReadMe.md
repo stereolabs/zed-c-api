@@ -11,7 +11,7 @@ This package lets you use the ZED stereo camera in C .The C API is a wrapper aro
 
 To start using the ZED SDK in C, you will need to install the following dependencies on your system:
 
-- [ZED SDK 4.2.0](https://www.stereolabs.com/developers/release/) and its dependency [CUDA](https://developer.nvidia.com/cuda-downloads)
+- [ZED SDK 5.1](https://www.stereolabs.com/developers/release/) and its dependency [CUDA](https://developer.nvidia.com/cuda-downloads)
 
 ## Installing the C API
 

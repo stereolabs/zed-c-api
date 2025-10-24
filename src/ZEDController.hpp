@@ -135,6 +135,8 @@ public:
     sl::ERROR_CODE getIMUOrientation(SL_Quaternion *quaternion, int time_reference);
     sl::ERROR_CODE getSensorsData(SL_SensorsData *sensorData, int time_reference);
 
+    sl::ERROR_CODE getSensorsDataBatchCount(int* count);
+    sl::ERROR_CODE getSensorsDataBatch(struct SL_SensorsData** imu_data);
     sl::ERROR_CODE startRegionOfInterestAutoDetection(SL_RegionOfInterestParameters* roi_params);
     sl::ERROR_CODE setRegionOfInterest(sl::Mat mask, bool module[SL_MODULE_LAST]);
     sl::ERROR_CODE getRegionOfInterest(sl::Mat mask, sl::Resolution mask_size, enum SL_MODULE module);
@@ -281,6 +283,9 @@ private:
     bool isMeshUpdated = false;
     bool areTextureReady = false;
     bool isTextured = false;
+
+    bool isSensorsBatchReady = false;
+    std::vector<sl::SensorsData> sensorsDataBatch;
 
     bool saveTexture;
     sl::Mesh mesh;

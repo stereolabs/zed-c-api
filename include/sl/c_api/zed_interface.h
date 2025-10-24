@@ -30,6 +30,8 @@ extern "C" {
 #endif
 
 
+	INTERFACE_API void sl_free(void* ptr);
+
     /**
     \brief Forces unload of all instances.
     */
@@ -826,6 +828,27 @@ extern "C" {
      */
     INTERFACE_API int sl_get_sensors_data(int camera_id, struct SL_SensorsData* data, enum SL_TIME_REFERENCE time_reference);
 
+    /**
+	\brief Retrieves the size of the imu batch array. Needs to be called before sl_get_sensors_data_batch().
+	\param [out] count : The number of sensors data available in the batch.
+    \param camera_id : Id of the camera instance.
+    \return \ref SL_ERROR_CODE "SL_ERROR_CODE_SUCCESS" if sensors data have been extracted.
+    \return \ref SL_ERROR_CODE "SL_ERROR_CODE_SENSORS_NOT_AVAILABLE" if the camera model is a \ref SL_MODEL "SL_MODEL_ZED".
+    \return \ref SL_ERROR_CODE "SL_ERROR_CODE_MOTION_SENSORS_REQUIRED" if the camera model is correct but the sensors module is not opened.
+    \return \ref SL_ERROR_CODE "SL_ERROR_CODE_INVALID_FUNCTION_PARAMETERS" if the <b>reference_time</b> is not valid.
+    */
+    INTERFACE_API int sl_get_sensors_data_batch_count(int camera_id, int* count);
+    /**
+    \brief Retrieves all SL_SensorsData associated to most recent grabbed frame in the specified \ref COORDINATE_SYSTEM of InitParameters.
+	\note sl_get_sensors_data_batch needs to be called before this function to retrieve the size of the imu batch array.
+    \param [out] data : The SensorsData array to store the data.
+    \param camera_id : Id of the camera instance.
+    \return \ref SL_ERROR_CODE "SL_ERROR_CODE_SUCCESS" if sensors data have been extracted.
+    \return \ref SL_ERROR_CODE "SL_ERROR_CODE_SENSORS_NOT_AVAILABLE" if the camera model is a \ref SL_MODEL "SL_MODEL_ZED".
+    \return \ref SL_ERROR_CODE "SL_ERROR_CODE_MOTION_SENSORS_REQUIRED" if the camera model is correct but the sensors module is not opened.
+    \return \ref SL_ERROR_CODE "SL_ERROR_CODE_INVALID_FUNCTION_PARAMETERS" if the <b>reference_time</b> is not valid.
+    */
+    INTERFACE_API int sl_get_sensors_data_batch(int camera_id, struct SL_SensorsData** data);
 
     //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     ////////////////////////////////////////////////////////////////// Spatial Mapping ///////////////////////////////////////////////////////////////////////
@@ -1290,9 +1313,8 @@ extern "C" {
     /**
     \brief Initializes and starts object detection module.
     
-    The object detection module currently supports multiple class of objects with the \ref SL_OBJECT_DETECTION_MODEL "SL_OBJECT_DETECTION_MODEL_MULTI_CLASS_BOX"
-    or \ref SL_OBJECT_DETECTION_MODEL "SL_OBJECT_DETECTION_MODEL_MULTI_CLASS_BOX_ACCURATE".
-    \n The full list of detectable objects is available through \ref SL_OBJECT_CLASS and \ref SL_OBJECT_SUBCLASS.
+    The object detection module currently support multiple StereoLabs' model for different purposes: "MULTI_CLASS", "PERSON_HEAD"
+    \n The full list of model is available through \ref SL_OBJECT_DETECTION_MODEL and the full list of detectable objects is available through \ref SL_OBJECT_CLASS and \ref SL_OBJECT_SUBCLASS.
 
     \note - <b>This Deep Learning detection module is not available for \ref MODEL "MODEL::ZED" cameras (ZED first generation).</b>.
     \note - This feature uses AI to locate objects and requires a powerful GPU. A GPU with at least 3GB of memory is recommended.
@@ -1402,6 +1424,8 @@ extern "C" {
     \return Size of the unique ID generated.
      */
     INTERFACE_API int sl_generate_unique_id(char* uuid);
+
+    INTERFACE_API int sl_generate_unique_id_str(char* uuid);
 
     /**
     \brief Feed the 3D Object tracking function with your own 2D bounding boxes from your own detection algorithm.
