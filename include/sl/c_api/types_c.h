@@ -474,7 +474,7 @@ enum SL_ERROR_CODE {
 	SL_ERROR_CODE_PLANE_NOT_FOUND, /**< Plane not found. Either no plane is detected in the scene, at the location or corresponding to the floor, or the floor plane doesn't match the prior given.*/
 	SL_ERROR_CODE_MODULE_NOT_COMPATIBLE_WITH_CAMERA, /**< The module you try to use is not compatible with your camera \ref SL_MODEL. \note \ref SL_MODEL_ZED does not has an IMU and does not support the AI modules.*/
 	SL_ERROR_CODE_MOTION_SENSORS_REQUIRED, /**< The module needs the sensors to be enabled (see SL_InitParameters.sensors_required). */
-	SL_ERROR_CODE_MODULE_NOT_COMPATIBLE_WITH_CUDA_VERSION /**< The module needs a newer version of CUDA. */
+	SL_ERROR_CODE_MODULE_NOT_COMPATIBLE_WITH_CUDA_VERSION, /**< The module needs a newer version of CUDA. */
 	SL_ERROR_CODE_DRIVER_FAILURE  /**< The drivers initialization has failed. When using gmsl cameras, try restarting with sudo systemctl restart zed_x_daemon.service */
 };
 
