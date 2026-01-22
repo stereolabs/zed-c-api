@@ -149,22 +149,28 @@ int ZEDController::initFromStream(SL_InitParameters *params, const char* ip, int
     return open();
 }
 
-int ZEDController::initFromGMSL(SL_InitParameters* params, const unsigned int serial_number, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
+int ZEDController::initFromGMSL(SL_InitParameters* params, const unsigned int serial_number, int gmsl_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
 
     char buffer_verbose[2048];
     if (cameraOpened) {
         sprintf(buffer_verbose, "[initFromGMSL] Camera already opened %d = %d return success", params->camera_device_id, camera_ID);
         return 0;
     }
-    sprintf(buffer_verbose, "ENTER ZEDController::initFromGMSL %d = %d", params->camera_device_id, camera_ID);
+    sprintf(buffer_verbose, "ENTER ZEDController::initFromGMSL %d = %d", gmsl_port, camera_ID);
     copy_init_parameters(initParams, params, output_file, opt_settings_path, opencv_calib_path);
 
-    if (serial_number > 0) {
+    if (gmsl_port >= 0)
+    {
+        initParams.input.setFromGMSLPort(gmsl_port);
+    }
+    else if (serial_number > 0) 
+    {
         initParams.input.setFromSerialNumber(serial_number);
     }
-    else {
+    else 
+    {
         initParams.input.setFromCameraID(params->camera_device_id, sl::BUS_TYPE::GMSL);
-    }
+	}
 
     return open();
 
@@ -2204,6 +2210,10 @@ sl::ERROR_CODE ZEDController::ingestCustomBoxObjectData(int nb_objects, SL_Custo
 				tmp.max_allowed_acceleration = makeQuietNaN();
 			else
 				tmp.max_allowed_acceleration = obj.max_allowed_acceleration;
+			tmp.velocity_smoothing_factor = obj.velocity_smoothing_factor;
+			tmp.min_velocity_threshold = obj.min_velocity_threshold;
+			tmp.prediction_timeout_s = obj.prediction_timeout_s;
+			tmp.min_confirmation_time_s = obj.min_confirmation_time_s;
 			for (int l = 0; l < 4; l++) {
 				sl::uint2 value;
 				value.x = obj.bounding_box_2d[l].x;
@@ -2245,6 +2255,10 @@ sl::ERROR_CODE ZEDController::ingestCustomMaskObjectData(int nb_objects, SL_Cust
 				tmp.max_allowed_acceleration = makeQuietNaN();
 			else
 				tmp.max_allowed_acceleration = obj.max_allowed_acceleration;
+			tmp.velocity_smoothing_factor = obj.velocity_smoothing_factor;
+			tmp.min_velocity_threshold = obj.min_velocity_threshold;
+			tmp.prediction_timeout_s = obj.prediction_timeout_s;
+			tmp.min_confirmation_time_s = obj.min_confirmation_time_s;
 			for (int l = 0; l < 4; l++) {
 				sl::uint2 value;
 				value.x = obj.bounding_box_2d[l].x;
@@ -2337,6 +2351,18 @@ static void convertObjects(const sl::Objects& in_data,
     }
 }
 
+static void convert(const SL_ObjectTrackingParameters& in_data, sl::ObjectTrackingParameters& out_data) {
+    out_data.object_acceleration_preset = (sl::OBJECT_ACCELERATION_PRESET)in_data.object_acceleration_preset;
+    if ((in_data.max_allowed_acceleration == NAN) || (in_data.max_allowed_acceleration == nan("")))
+        out_data.max_allowed_acceleration = makeQuietNaN();
+    else
+        out_data.max_allowed_acceleration = in_data.max_allowed_acceleration;
+    out_data.velocity_smoothing_factor = in_data.velocity_smoothing_factor;
+    out_data.min_velocity_threshold = in_data.min_velocity_threshold;
+    out_data.prediction_timeout_s = in_data.prediction_timeout_s;
+    out_data.min_confirmation_time_s = in_data.min_confirmation_time_s;
+}
+
 sl::ERROR_CODE ZEDController::retrieveObjectDetectionData(SL_ObjectDetectionRuntimeParameters* _objruntimeparams, SL_Objects* data, unsigned int instance_id) {
     memset(data, 0, sizeof(SL_Objects));
 
@@ -2348,6 +2374,7 @@ sl::ERROR_CODE ZEDController::retrieveObjectDetectionData(SL_ObjectDetectionRunt
 
         runtime_params.object_class_filter = std::vector<sl::OBJECT_CLASS>{};
         runtime_params.object_class_detection_confidence_threshold = std::map<sl::OBJECT_CLASS, float>{};
+        runtime_params.object_class_tracking_parameters = std::map<sl::OBJECT_CLASS, sl::ObjectTrackingParameters>{};
 
         for (int k = 0; k < (int) sl::OBJECT_CLASS::LAST; k++) {
             if (_objruntimeparams->object_class_filter[k]) {
@@ -2357,6 +2384,15 @@ sl::ERROR_CODE ZEDController::retrieveObjectDetectionData(SL_ObjectDetectionRunt
             if (_objruntimeparams->object_confidence_threshold[k]) {
                 runtime_params.object_class_detection_confidence_threshold.insert({static_cast<sl::OBJECT_CLASS> (k), _objruntimeparams->object_confidence_threshold[k]});
             }
+            
+            convert(
+                _objruntimeparams->object_class_tracking_parameters[k],
+                runtime_params.object_class_tracking_parameters[static_cast<sl::OBJECT_CLASS>(k)]
+            );
+
+            convert(
+                _objruntimeparams->object_tracking_parameters,
+                runtime_params.object_tracking_parameters);
         }
         sl::ERROR_CODE v = zed.retrieveObjects(objects, runtime_params, instance_id);
 
@@ -2404,6 +2440,8 @@ static void convert(const SL_CustomObjectDetectionProperties& in_data, sl::Custo
         out_data.max_allowed_acceleration = makeQuietNaN();
     else
         out_data.max_allowed_acceleration = in_data.max_allowed_acceleration;
+    
+    convert(in_data.object_tracking_parameters, out_data.object_tracking_parameters);
 }
 
 sl::ERROR_CODE ZEDController::retrieveCustomObjectDetectionData(SL_CustomObjectDetectionRuntimeParameters* _objruntimeparams,
@@ -2604,8 +2642,10 @@ sl::ERROR_CODE ZEDController::setObjectDetectionRuntimeParameters(SL_ObjectDetec
         sl::ObjectDetectionRuntimeParameters params;
         params.detection_confidence_threshold = object_detection_params.detection_confidence_threshold;
 
-        params.object_class_filter = std::vector<sl::OBJECT_CLASS>{};        v = zed.setObjectDetectionRuntimeParameters(params);
+        params.object_class_filter = std::vector<sl::OBJECT_CLASS>{};
+        v = zed.setObjectDetectionRuntimeParameters(params);
         params.object_class_detection_confidence_threshold = std::map<sl::OBJECT_CLASS, float>{};
+        params.object_class_tracking_parameters = std::map<sl::OBJECT_CLASS, sl::ObjectTrackingParameters>{};
         for (int k = 0; k < (int)sl::OBJECT_CLASS::LAST; k++) {
             if (object_detection_params.object_class_filter[k]) {
                 params.object_class_filter.push_back(static_cast<sl::OBJECT_CLASS> (k));
@@ -2614,6 +2654,15 @@ sl::ERROR_CODE ZEDController::setObjectDetectionRuntimeParameters(SL_ObjectDetec
             if (object_detection_params.object_confidence_threshold[k]) {
                 params.object_class_detection_confidence_threshold.insert({ static_cast<sl::OBJECT_CLASS> (k), object_detection_params.object_confidence_threshold[k] });
             }
+
+            convert(
+                object_detection_params.object_class_tracking_parameters[k],
+                params.object_class_tracking_parameters[static_cast<sl::OBJECT_CLASS>(k)]
+            );
+
+            convert(
+                object_detection_params.object_tracking_parameters,
+                params.object_tracking_parameters);
         }
 
         v = zed.setObjectDetectionRuntimeParameters(params, instance_id);

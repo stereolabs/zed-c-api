@@ -560,6 +560,15 @@ enum SL_MEM
 };
 
 /**
+\brief Lists available LIVE input type in the ZED SDK.
+ */
+enum SL_BUS_TYPE {
+	SL_BUS_TYPE_USB,  /**< USB input mode */
+	SL_BUS_TYPE_GMSL, /**< GMSL input mode \note Only on NVIDIA Jetson. */
+	SL_BUS_TYPE_AUTO /**< Automatically select the input type.\n Trying first for available USB cameras, then GMSL. */
+};
+
+/**
 \brief Lists available sensor types.
 \note Sensors are not available on \ref SL_MODEL_ZED.
  */
@@ -1054,6 +1063,68 @@ enum SL_OBJECT_ACCELERATION_PRESET {
 };
 
 /**
+\brief Structure containing a set of parameters for the object tracking module.
+
+The default constructor sets all parameters to their default settings.
+\note Parameters can be adjusted by the user.
+*/
+struct SL_ObjectTrackingParameters {
+	/**
+	\brief Preset defining the expected maximum acceleration of the tracked object.
+
+	Determines how the ZED SDK interprets object acceleration, affecting tracking behavior and predictions.
+	 */
+	enum SL_OBJECT_ACCELERATION_PRESET object_acceleration_preset;
+
+	/**
+	\brief Deprecated: Manually override the acceleration preset.
+	\warning Preferred way is to use \ref velocity_smoothing_factor.
+	*/
+	float max_allowed_acceleration;
+
+	/**
+	\brief Control the smoothing of the velocity estimation.
+	Values between 0.0 and 1.0.
+	- High value (closer to 1.0): Very smooth, but may lag behind rapid changes.
+	- Low value (closer to 0.0): Very responsive to velocity changes, but may be jittery.
+	- 0.5: ZED SDK base tuning. Balanced smoothing and responsiveness.
+	A negative value (e.g. -1) lets the ZED SDK interpret the velocity_smoothing_factor.
+	Default: -1
+	*/
+	float velocity_smoothing_factor;
+
+	/**
+	\brief Threshold to force an object's velocity to zero.
+	If the calculated speed (m/s) is below this threshold, the object is considered static.
+	This helps eliminate drift on stationary objects.
+	A negative value (e.g. -1) lets the ZED SDK interpret the min_velocity_threshold.
+	Default: -1
+	*/
+	float min_velocity_threshold;
+
+	/**
+	\brief Duration to keep predicting a track's position after occlusion.
+	When an object is no longer visible (occluded or out of frame),
+	the tracker will predict its position for this duration before deleting the track.
+	- Short (e.g., 0.2s): Prevents "ghost" objects but may break tracks during short occlusions.
+	- Long (e.g., 2.0s): Maintains ID during long occlusions but may report objects that are gone.
+	A negative value (e.g. -1) lets the ZED SDK interpret the prediction_timeout_s.
+	Default: -1
+	*/
+	float prediction_timeout_s;
+
+	/**
+	\brief Minimum confirmation time required to validate a track.
+	The minimum duration (in seconds) an object must be continuously detected
+	before it is reported as a valid track. Helps filter out spurious false
+	positives that appear only briefly.
+	A negative value (e.g. -1) lets the ZED SDK interpret the min_confirmation_time_s.
+	Default: -1
+	*/
+	float min_confirmation_time_s;
+};
+
+/**
   * \brief Report the actual inference precision used
   */
 enum SL_INFERENCE_PRECISION {
@@ -1474,26 +1545,28 @@ struct SL_InitParameters
 	int depth_stabilization;
 	
 	/**
-	\brief Minimum depth distance to be returned, measured in the \ref SL_UNIT defined in \ref coordinate_unit.
-	
-	This parameter allows you to specify the minimum depth value (from the camera) that will be computed.
-	
-	\n In stereovision (the depth technology used by the camera), looking for closer depth values can have a slight impact on performance and memory consumption.
-	\n On most modern GPUs, performance impact will be low. However, the impact of memory footprint will be visible.
-	\n In cases of limited computation power, increasing this value can provide better performance.
-	\n Default: -1 (corresponding values are available <a href="https://www.stereolabs.com/docs/depth-sensing/depth-settings#depth-range">here</a>)
+	\brief Minimum depth distance to be returned, measured in the SL_UNIT defined in \ref coordinate_unit.
+	\n This parameter allows you to specify the minimum depth value (from the camera) that will be computed.
+	\n Setting this value to any negative or null value will select the default minimum depth distance available for the used ZED Camera (depending on the camera focal length and baseline).
 
-	\note \ref depth_minimum_distance value cannot be greater than 3 meters.
-	\note 0 will imply that \ref depth_minimum_distance is set to the minimum depth possible for each camera
-	(those values are available <a href="https://www.stereolabs.com/docs/depth-sensing/depth-settings#depth-range">here</a>).
-		*/
+	\n Default: -1
+
+	\n When using deprecated depth modes ( \ref SL_DEPTH_MODE_PERFORMANCE, \ref SL_DEPTH_MODE_QUALITY or \ref SL_DEPTH_MODE_ULTRA), 
+	the default minimum depth distances are given by <a href="https://www.stereolabs.com/docs/depth-sensing/depth-settings#depth-range">this table</a>.
+	
+	\note This value cannot be greater than 3 meters.
+	 */
 	float depth_minimum_distance;
+	
 	/**
 	\brief Maximum depth distance to be returned, measured in the \ref SL_UNIT defined in \ref coordinate_unit.
 
-	When estimating the depth, the ZED SDK uses this upper limit to turn higher values into <b>inf</b> ones.
-	\note Changing this value has no impact on performance and doesn't affect the positional tracking nor the spatial mapping.
-	\note It only change values the depth, point cloud and normals.
+	\n When estimating the depth, the ZED SDK uses this upper limit to turn higher values into sl::TOO_FAR ones.
+	\n Changing this value has no impact on performance and doesn't affect the positional tracking nor the spatial mapping.
+	\n It only change values the depth, point cloud and normals.
+	\n Setting this value to any negative or null value will select the default maximum depth distance available.
+
+	\n Default: -1
 	 */
 	float depth_maximum_distance;
 	
@@ -1703,7 +1776,11 @@ struct SL_DeviceProperties {
 	/**
 	\brief System path of the camera
 	 */
-	unsigned char path[512];
+	char path[512];
+	/**
+	\brief System path of the camera
+	 */
+	char video_device[512];
 	/**
 	\brief i2c port of the camera.
 	 */
@@ -1721,6 +1798,10 @@ struct SL_DeviceProperties {
 	 */
 
 	unsigned int sn;
+	/**
+	 \brief GMSL port of the camera.
+	  */
+	int gmsl_port;
 	/**
 	\brief [Cam model, eeprom version, white balance param]
 	 */
@@ -2103,6 +2184,8 @@ struct SL_Landmark2D
 
 	The value ranges from 0 to 1, where a smaller value indicates greater confidence that the landmark
 	is owned by a dynamic object.
+
+    The value is -1 if the dynamic confidence is not computed.
 	*/
 	float dynamic_confidence;
 };
@@ -2384,6 +2467,13 @@ struct SL_StreamingProperties {
 	Default: \ref SL_STREAMING_CODEC_H265
 	 */
 	enum SL_STREAMING_CODEC codec;
+
+	/**
+	\brief Model of the streaming device.
+
+	Default: SL_MODEL_LAST
+	 */
+	enum SL_MODEL camera_model;
 };
 
 /**
@@ -2685,6 +2775,19 @@ struct SL_ObjectDetectionRuntimeParameters
     \note SL_ObjectDetectionRuntimeParameters.detection_confidence_threshold will be taken as fallback/default value.
 	 */
 	int object_confidence_threshold[(int)SL_OBJECT_CLASS_LAST];
+
+	/**
+	\brief Default tracking parameters applied to all object classes.
+	\note These parameters are used as fallback when \ref object_class_tracking_parameters is not set for a specific class.
+	 */
+	struct SL_ObjectTrackingParameters object_tracking_parameters;
+
+	/**
+	\brief Per-class tracking parameters array.
+	Allows setting different tracking parameters for each object class.
+	\note Use \ref object_tracking_parameters as fallback for classes not explicitly set.
+	 */
+	struct SL_ObjectTrackingParameters object_class_tracking_parameters[(int)SL_OBJECT_CLASS_LAST];
 };
 
 /**
@@ -2835,6 +2938,11 @@ struct SL_CustomObjectDetectionProperties {
 	Defaults: NaN
 	*/
 	float max_allowed_acceleration;
+
+	/**
+	\brief Object tracking parameters for this class.
+	 */
+	struct SL_ObjectTrackingParameters object_tracking_parameters;
 };
 
 /**
@@ -3216,6 +3324,47 @@ struct SL_CustomBoxObjectData {
 	Defaults: NaN
 		*/
 	float max_allowed_acceleration;
+
+	/**
+	\brief Control the smoothing of the velocity estimation.
+	Values between 0.0 and 1.0.
+	- High value (closer to 1.0): Very smooth, but may lag behind rapid changes.
+	- Low value (closer to 0.0): Very responsive to velocity changes, but may be jittery.
+	- 0.5: ZED SDK base tuning. Balanced smoothing and responsiveness.
+	A negative value (e.g. -1) lets the ZED SDK interpret the velocity_smoothing_factor.
+	Default: -1
+	*/
+	float velocity_smoothing_factor;
+
+	/**
+	\brief Threshold to force an object's velocity to zero.
+	If the calculated speed (m/s) is below this threshold, the object is considered static.
+	This helps eliminate drift on stationary objects.
+	A negative value (e.g. -1) lets the ZED SDK interpret the min_velocity_threshold.
+	Default: -1
+	*/
+	float min_velocity_threshold;
+
+	/**
+	\brief Duration to keep predicting a track's position after occlusion.
+	When an object is no longer visible (occluded or out of frame), 
+	the tracker will predict its position for this duration before deleting the track.
+	- Short (e.g., 0.2s): Prevents "ghost" objects but may break tracks during short occlusions.
+	- Long (e.g., 2.0s): Maintains ID during long occlusions but may report objects that are gone.
+	A negative value (e.g. -1) lets the ZED SDK interpret the prediction_timeout_s.
+	Default: -1
+	*/
+	float prediction_timeout_s;
+
+	/**
+	\brief Minimum confirmation time required to validate a track.
+	The minimum duration (in seconds) an object must be continuously detected
+	before it is reported as a valid track. Helps filter out spurious false
+	positives that appear only briefly.
+	A negative value (e.g. -1) lets the ZED SDK interpret the min_confirmation_time_s.
+	Default: -1
+	*/
+	float min_confirmation_time_s;
 };
 
 struct SL_CustomMaskObjectData {
@@ -3323,9 +3472,50 @@ struct SL_CustomMaskObjectData {
 	If set, this value takes precedence over the selected preset, allowing for a custom maximum acceleration.
 	Takes precedence over the runtime parameter, if also set.
 	Unit is m/s^2.
-	Defaults: NaN
+	Default: NaN
 		*/
 	float max_allowed_acceleration;
+
+	/**
+	\brief Control the smoothing of the velocity estimation.
+	Values between 0.0 and 1.0.
+	- High value (closer to 1.0): Very smooth, but may lag behind rapid changes.
+	- Low value (closer to 0.0): Very responsive to velocity changes, but may be jittery.
+	- 0.5: ZED SDK base tuning. Balanced smoothing and responsiveness.
+	A negative value (e.g. -1) lets the ZED SDK interpret the velocity_smoothing_factor.
+	Default: -1
+	*/
+	float velocity_smoothing_factor;
+
+	/**
+	\brief Threshold to force an object's velocity to zero.
+	If the calculated speed (m/s) is below this threshold, the object is considered static.
+	This helps eliminate drift on stationary objects.
+	A negative value (e.g. -1) lets the ZED SDK interpret the min_velocity_threshold.
+	Default: -1
+	*/
+	float min_velocity_threshold;
+
+	/**
+	\brief Duration to keep predicting a track's position after occlusion.
+	When an object is no longer visible (occluded or out of frame), 
+	the tracker will predict its position for this duration before deleting the track.
+	- Short (e.g., 0.2s): Prevents "ghost" objects but may break tracks during short occlusions.
+	- Long (e.g., 2.0s): Maintains ID during long occlusions but may report objects that are gone.
+	A negative value (e.g. -1) lets the ZED SDK interpret the prediction_timeout_s.
+	Default: -1
+	*/
+	float prediction_timeout_s;
+
+	/**
+	\brief Minimum confirmation time required to validate a track.
+	The minimum duration (in seconds) an object must be continuously detected
+	before it is reported as a valid track. Helps filter out spurious false
+	positives that appear only briefly.
+	A negative value (e.g. -1) lets the ZED SDK interpret the min_confirmation_time_s.
+	Default: -1
+	*/
+	float min_confirmation_time_s;
 };
 
 /**
