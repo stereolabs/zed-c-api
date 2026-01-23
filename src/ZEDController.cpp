@@ -2353,10 +2353,6 @@ static void convertObjects(const sl::Objects& in_data,
 
 static void convert(const SL_ObjectTrackingParameters& in_data, sl::ObjectTrackingParameters& out_data) {
     out_data.object_acceleration_preset = (sl::OBJECT_ACCELERATION_PRESET)in_data.object_acceleration_preset;
-    if ((in_data.max_allowed_acceleration == NAN) || (in_data.max_allowed_acceleration == nan("")))
-        out_data.max_allowed_acceleration = makeQuietNaN();
-    else
-        out_data.max_allowed_acceleration = in_data.max_allowed_acceleration;
     out_data.velocity_smoothing_factor = in_data.velocity_smoothing_factor;
     out_data.min_velocity_threshold = in_data.min_velocity_threshold;
     out_data.prediction_timeout_s = in_data.prediction_timeout_s;

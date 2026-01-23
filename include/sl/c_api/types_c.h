@@ -1077,12 +1077,6 @@ struct SL_ObjectTrackingParameters {
 	enum SL_OBJECT_ACCELERATION_PRESET object_acceleration_preset;
 
 	/**
-	\brief Deprecated: Manually override the acceleration preset.
-	\warning Preferred way is to use \ref velocity_smoothing_factor.
-	*/
-	float max_allowed_acceleration;
-
-	/**
 	\brief Control the smoothing of the velocity estimation.
 	Values between 0.0 and 1.0.
 	- High value (closer to 1.0): Very smooth, but may lag behind rapid changes.
