@@ -104,25 +104,51 @@ extern "C" {
         ZEDController::get(id)->destroy();
     }
 
-    INTERFACE_API int sl_open_camera(int id, SL_InitParameters* init_parameters, const unsigned int serial_number, const char* path_svo, const char* ip, int stream_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
+    INTERFACE_API int sl_open_camera(int id, SL_InitParameters* init_parameters, const unsigned int serial_number, const char* path_svo, const char* ip, int stream_port, int gmsl_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
         int err = (int)sl::ERROR_CODE::CAMERA_NOT_DETECTED;
-        if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::SVO) {
+        if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::SVO) 
+        {
             err = ZEDController::get(id)->initFromSVO(init_parameters, path_svo, output_file, opt_settings_path, opencv_calib_path);
         }
-        else if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::STREAM) {
+        else if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::STREAM)
+        {
             err = ZEDController::get(id)->initFromStream(init_parameters, ip, stream_port, output_file, opt_settings_path, opencv_calib_path);
         }
-        else if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::GMSL) {
-            err = ZEDController::get(id)->initFromGMSL(init_parameters, serial_number, output_file, opt_settings_path, opencv_calib_path);
+        else if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::GMSL)
+        {
+            err = ZEDController::get(id)->initFromGMSL(init_parameters, serial_number, gmsl_port, output_file, opt_settings_path, opencv_calib_path);     
         }
-        else
+        else // USB
         {
             err = ZEDController::get(id)->initFromLive(init_parameters, serial_number, output_file, opt_settings_path, opencv_calib_path);
-        }
+        }    
+
         return err;
     }
 
-    INTERFACE_API bool sl_is_opened(int c_id) {
+    INTERFACE_API int sl_open_camera_from_camera_id(int camera_id, SL_InitParameters* init_parameters, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path)
+    {
+        return ZEDController::get(camera_id)->initFromLive(init_parameters, 0, output_file, opt_settings_path, opencv_calib_path);
+    }
+
+    INTERFACE_API int sl_open_camera_from_serial_number(int camera_id, SL_InitParameters* init_parameters, const unsigned int serial_number, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path)
+    {
+		return ZEDController::get(camera_id)->initFromLive(init_parameters, serial_number, output_file, opt_settings_path, opencv_calib_path);
+    }
+
+    INTERFACE_API int sl_open_camera_from_svo_file(int camera_id, SL_InitParameters* init_parameters, const char* path_svo, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path)
+    {
+        return ZEDController::get(camera_id)->initFromSVO(init_parameters, path_svo, output_file, opt_settings_path, opencv_calib_path);
+    }
+
+    INTERFACE_API int sl_open_camera_from_stream(int camera_id, SL_InitParameters * init_parameters, const char* ip, int stream_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path)
+    {
+		return ZEDController::get(camera_id)->initFromStream(init_parameters, ip, stream_port, output_file, opt_settings_path, opencv_calib_path);
+    }
+
+    INTERFACE_API bool sl_is_opened(int c_id) 
+    {
+
         return  ZEDController::get(c_id)->zed.isOpened();
     }
 
@@ -228,10 +254,7 @@ extern "C" {
 
     INTERFACE_API char* sl_get_sdk_version() {
         std::string s = std::string(sl::Camera::getSDKVersion().c_str());
-        char* res = (char*)malloc(s.size() + 1);
-        strncpy(res, s.c_str(), s.size());
-        res[s.size()] = '\0';
-        return res;
+        return strdup(s.c_str());  // allocates and copies
     }
 
     INTERFACE_API int sl_convert_coordinate_system(struct SL_Quaternion* rotation, struct SL_Vector3* translation, enum SL_COORDINATE_SYSTEM coord_system_src, enum SL_COORDINATE_SYSTEM coord_system_dest) {
@@ -320,16 +343,18 @@ extern "C" {
         for (int i = 0; i < devices.size(); i++) {
             if (i < MAX_CAMERA_PLUGIN) {
                 SL_DeviceProperties device;
-				memset(&device, 0, sizeof(SL_DeviceProperties));
+                memset(&device, 0, sizeof(SL_DeviceProperties));
                 device.camera_model = (SL_MODEL)devices[i].camera_model;
                 device.camera_state = (SL_CAMERA_STATE)devices[i].camera_state;
                 device.id = devices[i].id;
                 device.sn = devices[i].serial_number;
                 device.input_type = (SL_INPUT_TYPE)devices[i].input_type;
                 device.i2c_port = devices[i].i2c_port;
-				device.sensor_address_left = devices[i].sensor_address_left;
-				device.sensor_address_right = devices[i].sensor_address_right;
-                memcpy(device.path, devices[i].path, sizeof(device.path));
+                device.sensor_address_left = devices[i].sensor_address_left;
+                device.sensor_address_right = devices[i].sensor_address_right;
+                device.gmsl_port = devices[i].gmsl_port;
+                strncpy(device.path, devices[i].path.c_str(), std::min((int)devices[i].path.size(), 512));
+                strncpy(device.video_device, devices[i].video_device, std::min((int)devices[i].video_device.size(), 512));
                 strncpy(device.camera_badge, devices[i].camera_badge.c_str(), std::min((int)devices[i].camera_badge.size(), 128));
                 strncpy(device.camera_sensor_model, devices[i].camera_sensor_model.c_str(), std::min((int)devices[i].camera_sensor_model.size(), 128));
                 strncpy(device.camera_name, devices[i].camera_name.c_str(), std::min((int)devices[i].camera_name.size(), 128));
@@ -353,6 +378,7 @@ extern "C" {
                 device.current_bitrate = devices[i].current_bitrate;
                 device.port = devices[i].port;
                 device.serial_number = devices[i].serial_number;
+                device.camera_model = (SL_MODEL)devices[i].camera_model;
 
                 if (devices[i].ip.size() < 16) {
                     memcpy(&device.ip[0], devices[i].ip.c_str(), devices[i].ip.size() * sizeof(unsigned char));
@@ -449,12 +475,14 @@ extern "C" {
 
     //////// Camera //////////////////
 
-    INTERFACE_API void sl_set_svo_position(int c_id, int frame) {
+    INTERFACE_API enum SL_ERROR_CODE sl_set_svo_position(int c_id, int position) {
         if (!ZEDController::get(c_id)->isNull()) {
             ZEDController::get(c_id)->lock();
-            ZEDController::get(c_id)->zed.setSVOPosition(frame);
+            SL_ERROR_CODE err = (SL_ERROR_CODE)ZEDController::get(c_id)->zed.setSVOPosition(position);
             ZEDController::get(c_id)->unlock();
+            return err;
         }
+            return (SL_ERROR_CODE)sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
     }
 
     INTERFACE_API int sl_get_svo_position(int c_id) {
