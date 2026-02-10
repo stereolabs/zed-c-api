@@ -475,12 +475,14 @@ extern "C" {
 
     //////// Camera //////////////////
 
-    INTERFACE_API void sl_set_svo_position(int c_id, int frame) {
+    INTERFACE_API enum SL_ERROR_CODE sl_set_svo_position(int c_id, int position) {
         if (!ZEDController::get(c_id)->isNull()) {
             ZEDController::get(c_id)->lock();
-            ZEDController::get(c_id)->zed.setSVOPosition(frame);
+            SL_ERROR_CODE err = (SL_ERROR_CODE)ZEDController::get(c_id)->zed.setSVOPosition(position);
             ZEDController::get(c_id)->unlock();
+            return err;
         }
+            return (SL_ERROR_CODE)sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
     }
 
     INTERFACE_API int sl_get_svo_position(int c_id) {
