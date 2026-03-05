@@ -1706,7 +1706,12 @@ extern "C" {
 
     INTERFACE_API int sl_retrieve_image(int c_id, void* ptr, enum SL_VIEW type, enum SL_MEM mem, int width, int height, void* custream) {
         if (!ZEDController::get(c_id)->isNull()) {
-            return (int)ZEDController::get(c_id)->zed.retrieveImage(*MAT, (sl::VIEW)type, (sl::MEM)(mem + 1), sl::Resolution(width, height), (cudaStream_t)custream);
+            if (type == SL_VIEW_LEFT_NV12_UNRECTIFIED || type == SL_VIEW_RIGHT_NV12_UNRECTIFIED) {
+                return (int)sl::ERROR_CODE::INVALID_FUNCTION_PARAMETERS;
+            }
+            else {
+                return (int)ZEDController::get(c_id)->zed.retrieveImage(*MAT, (sl::VIEW)type, (sl::MEM)(mem + 1), sl::Resolution(width, height), (cudaStream_t)custream);
+            }
         }
         return (int)sl::ERROR_CODE::CAMERA_NOT_DETECTED;
     }

@@ -1228,8 +1228,8 @@ extern "C" {
     \param measure_ptr : Pointer to the measure texture.
     \param type : Measure type (depth, confidence, xyz, etc). See \ref SL_MEASURE.
     \param mem : Whether the measure should be on CPU or GPU memory. See \ref SL_MEM.
-    \param width : Width of the texture in pixel.
-    \param height : Height of the texture in pixel.
+    \param width : Width of the texture in pixel. If set to 0, the camera resolution or SL_InitParameters.maximum_working_resolution will be taken, whichever is the smallest.
+    \param height : Height of the texture in pixel. If set to 0, the camera resolution or SL_InitParameters.maximum_working_resolution will be taken, whichever is the smallest.
     \return \ref SL_ERROR_CODE "SL_ERROR_CODE_SUCCESS" if the retrieve succeeded.
     \return \ref SL_ERROR_CODE "SL_ERROR_CODE_INVALID_FUNCTION_PARAMETERS" if the view mode requires a module not enabled (VIEW::DEPTH with DEPTH_MODE::NONE for example).
     \return \ref SL_ERROR_CODE "SL_ERROR_CODE_INVALID_RESOLUTION" if the resolution is higher than one provided by getCameraInformation().camera_configuration.resolution.
@@ -1245,8 +1245,8 @@ extern "C" {
     \param image_ptr : Pointer to the image texture.
     \param type : Image type (left RGB, right depth map, etc). See \ref SL_VIEW.
     \param  mem : Whether the image should be on CPU or GPU memory (\ref SL_MEM).
-    \param width : Width of the texture in pixel.
-    \param height : Height of the texture in pixel.
+    \param width : Width of the texture in pixel. If set to 0, the camera resolution or SL_InitParameters.maximum_working_resolution will be taken, whichever is the smallest.
+    \param height : Height of the texture in pixel. If set to 0, the camera resolution or SL_InitParameters.maximum_working_resolution will be taken, whichever is the smallest.
     \return \ref SL_ERROR_CODE "SL_ERROR_CODE_SUCCESS" if the retrieve succeeded.
      */
     INTERFACE_API int sl_retrieve_image(int camera_id, void* image_ptr, enum SL_VIEW type, enum SL_MEM mem, int width, int height, void* custream);

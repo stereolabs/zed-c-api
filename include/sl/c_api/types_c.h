@@ -703,6 +703,8 @@ enum SL_VIEW {
 	SL_VIEW_RIGHT, /**<  Right BGRA image. Each pixel contains 4 unsigned char (B, G, R, A).\n Type: \ref SL_MAT_TYPE_U8_C4 */
 	SL_VIEW_LEFT_GRAY, /**< Left gray image. Each pixel contains 1 unsigned char.\n Type: \ref SL_MAT_TYPE_U8_C1 */
 	SL_VIEW_RIGHT_GRAY, /**< Right gray image. Each pixel contains 1 unsigned char.\n Type: \ref SL_MAT_TYPE_U8_C1 */
+	SL_VIEW_LEFT_NV12_UNRECTIFIED,  /**< Left NV12 unrectified image. */
+	SL_VIEW_RIGHT_NV12_UNRECTIFIED, /**< Right NV12 unrectified image. */
 	SL_VIEW_LEFT_UNRECTIFIED, /**< Left BGRA unrectified image. Each pixel contains 4 unsigned char (B, G, R, A).\n Type: \ref SL_MAT_TYPE_U8_C4 */
 	SL_VIEW_RIGHT_UNRECTIFIED, /**< Right BGRA unrectified image. Each pixel contains 4 unsigned char (B, G, R, A).\n Type: \ref SL_MAT_TYPE_U8_C4 */
 	SL_VIEW_LEFT_UNRECTIFIED_GRAY, /**< Left gray unrectified image. Each pixel contains 1 unsigned char.\n Type: \ref SL_MAT_TYPE_U8_C1 */
@@ -1446,9 +1448,9 @@ struct SL_InitParameters
 	\note Small resolutions offer higher framerate and lower computation time.
 	\note In most situations, \ref SL_RESOLUTION_HD720 at 60 FPS is the best balance between image quality and framerate.
 
-	Default: <ul>
-	<li>ZED X/X Mini: \ref SL_RESOLUTION_HD1200</li>
-	<li>other cameras: \ref SL_RESOLUTION_HD720</li></ul>
+	Default: \ref SL_RESOLUTION_AUTO <ul>
+	<li>Resolves to \ref SL_RESOLUTION_HD1200 for ZED X/X Mini</li>
+	<li>Resolves to \ref SL_RESOLUTION_HD720 for other cameras</li></ul>
 	\note Available resolutions are listed here: \ref SL_RESOLUTION.
 	 */
 	enum  SL_RESOLUTION resolution;
@@ -1666,7 +1668,7 @@ struct SL_InitParameters
 	 This will perform additional verification on the image to identify corrupted data. This verification is done in the grab function and requires some computations.
 	 If an issue is found, the grab function will output a warning as sl_ERROR_CODE_CORRUPTED_FRAME.
 	 This version doesn't detect frame tearing currently.
-	 \n default: disabled
+	 \n default: enabled
 	 */
 	bool enable_image_validity_check;
 
@@ -2129,7 +2131,7 @@ struct SL_PositionalTrackingParameters
 	\brief Positional tracking mode used.
 	
 	Can be used to improve accuracy in some types of scene at the cost of longer runtime.
-	\n Default: \ref SL_POSITIONAL_TRACKING_MODE_GEN_1
+	\n Default: \ref SL_POSITIONAL_TRACKING_MODE_GEN_3
 	*/
 	enum SL_POSITIONAL_TRACKING_MODE mode;
 
