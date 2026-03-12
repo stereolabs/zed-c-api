@@ -106,7 +106,7 @@ extern "C" {
 
     INTERFACE_API int sl_open_camera(int id, SL_InitParameters* init_parameters, const unsigned int serial_number, const char* path_svo, const char* ip, int stream_port, int gmsl_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
         int err = (int)sl::ERROR_CODE::CAMERA_NOT_DETECTED;
-        if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::SVO) 
+        if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::SVO)
         {
             err = ZEDController::get(id)->initFromSVO(init_parameters, path_svo, output_file, opt_settings_path, opencv_calib_path);
         }
@@ -116,12 +116,12 @@ extern "C" {
         }
         else if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::GMSL)
         {
-            err = ZEDController::get(id)->initFromGMSL(init_parameters, serial_number, gmsl_port, output_file, opt_settings_path, opencv_calib_path);     
+            err = ZEDController::get(id)->initFromGMSL(init_parameters, serial_number, gmsl_port, output_file, opt_settings_path, opencv_calib_path);
         }
         else // USB
         {
             err = ZEDController::get(id)->initFromLive(init_parameters, serial_number, output_file, opt_settings_path, opencv_calib_path);
-        }    
+        }
 
         return err;
     }
@@ -146,7 +146,7 @@ extern "C" {
 		return ZEDController::get(camera_id)->initFromStream(init_parameters, ip, stream_port, output_file, opt_settings_path, opencv_calib_path);
     }
 
-    INTERFACE_API bool sl_is_opened(int c_id) 
+    INTERFACE_API bool sl_is_opened(int c_id)
     {
 
         return  ZEDController::get(c_id)->zed.isOpened();
@@ -174,7 +174,7 @@ extern "C" {
 
     INTERFACE_API enum SL_ERROR_CODE sl_stop_publishing(int c_id)
     {
-        if (!ZEDController::get(c_id)->isNull()) 
+        if (!ZEDController::get(c_id)->isNull())
         {
             return (SL_ERROR_CODE)ZEDController::get(c_id)->zed.startPublishing();
         }
@@ -621,7 +621,7 @@ extern "C" {
             return (SL_ERROR_CODE)ZEDController::get(c_id)->zed.setCameraSettings((sl::VIDEO_SETTINGS)mode, value);
         else return SL_ERROR_CODE_FAILURE;
     }
-    
+
     INTERFACE_API SL_ERROR_CODE sl_set_camera_settings_min_max(int c_id, enum SL_VIDEO_SETTINGS mode, int min, int max) {
         if (!ZEDController::get(c_id)->isNull())
             return (SL_ERROR_CODE)ZEDController::get(c_id)->zed.setCameraSettings((sl::VIDEO_SETTINGS)mode, min, max);
@@ -1238,7 +1238,7 @@ extern "C" {
         return sdk_id.size();
     }
 
-    INTERFACE_API int sl_generate_unique_id_str(char* id) {        
+    INTERFACE_API int sl_generate_unique_id_str(char* id) {
         sl::String sdk_id_sl = sl::generate_unique_id();
         std::string sdk_id(sdk_id_sl.c_str());
         ///* error */ memcpy(id, sdk_id.c_str(), sdk_id.size() * sizeof(char));
@@ -1373,7 +1373,7 @@ extern "C" {
 
     INTERFACE_API SL_FUSION_ERROR_CODE sl_fusion_process()
     {
-        if (!ZEDFusionController::get()->isNotCreated()) 
+        if (!ZEDFusionController::get()->isNotCreated())
         {
             return ZEDFusionController::get()->process();
         }
@@ -1406,7 +1406,7 @@ extern "C" {
             return SL_FUSION_ERROR_CODE_FAILURE;
         }
     }
-    
+
     INTERFACE_API enum SL_FUSION_ERROR_CODE sl_fusion_retrieve_image(void* ptr, struct SL_CameraIdentifier* uuid, int width, int height)
     {
         if (!ZEDFusionController::get()->isNotCreated())
@@ -1734,7 +1734,7 @@ extern "C" {
 
     INTERFACE_API void sl_mat_free(void* ptr, enum SL_MEM mem) {
         MAT->free((sl::MEM)(mem + 1));
-        if (ptr != nullptr) delete ptr;
+        if (ptr != nullptr) delete (sl::Mat*)ptr;
     }
 
     INTERFACE_API void sl_mat_get_infos(void* ptr, char* buffer) {
@@ -2014,13 +2014,13 @@ extern "C" {
     \param swap_RB_channels : indicates if the Red and Blue channels should be swapped (RGB<->BGR or RGBA<->BGRA)
     \param stream : a cuda stream to put the compute
      */
-	INTERFACE_API int sl_blob_from_image(void* ptr, void* tensor_out, struct SL_Resolution resolution_out, 
-        float scalefactor, struct SL_Vector3 mean, struct SL_Vector3 stddev, bool keep_aspect_ratio, bool swap_RB_channels, 
+	INTERFACE_API int sl_blob_from_image(void* ptr, void* tensor_out, struct SL_Resolution resolution_out,
+        float scalefactor, struct SL_Vector3 mean, struct SL_Vector3 stddev, bool keep_aspect_ratio, bool swap_RB_channels,
         void* stream)
 	{
-		return (int)sl::blobFromImage(*MAT, *(sl::Mat*)tensor_out, sl::Resolution(resolution_out.width, resolution_out.height), 
-            scalefactor, sl::float3(mean.x, mean.y, mean.z), 
-            sl::float3(stddev.x, stddev.y, stddev.z), 
+		return (int)sl::blobFromImage(*MAT, *(sl::Mat*)tensor_out, sl::Resolution(resolution_out.width, resolution_out.height),
+            scalefactor, sl::float3(mean.x, mean.y, mean.z),
+            sl::float3(stddev.x, stddev.y, stddev.z),
             keep_aspect_ratio, swap_RB_channels, (cudaStream_t)stream);
     }
 
@@ -2051,7 +2051,7 @@ extern "C" {
 
 		return res;
     }
-    
+
     INTERFACE_API bool sl_is_camera_one(enum SL_MODEL m){
         auto model = static_cast<sl::MODEL>(m);
         return sl::isCameraOne(model);
@@ -2072,7 +2072,7 @@ extern "C" {
     INTERFACE_API bool sl_is_HDR_available(enum SL_RESOLUTION r, enum SL_MODEL m){
         auto model = static_cast<sl::MODEL>(m);
         auto res = static_cast<sl::RESOLUTION>(r);
-        return sl::supportHDR(res, model);        
+        return sl::supportHDR(res, model);
     }
 
 #ifdef __cplusplus
