@@ -1733,8 +1733,10 @@ extern "C" {
     }
 
     INTERFACE_API void sl_mat_free(void* ptr, enum SL_MEM mem) {
-        MAT->free((sl::MEM)(mem + 1));
-        if (ptr != nullptr) delete (sl::Mat*)ptr;
+        if (ptr != nullptr) {
+          MAT->free((sl::MEM)(mem + 1));
+          delete MAT;
+        }
     }
 
     INTERFACE_API void sl_mat_get_infos(void* ptr, char* buffer) {
