@@ -6,7 +6,8 @@
 
 #include <sl/Camera.hpp>
 
-#include "ZEDController.hpp"
+#include "sl/c_api/ZEDController.hpp"
+
 #include "ZEDFusionController.hpp"
 #include "sl/c_api/zed_interface.h"
 
@@ -83,6 +84,14 @@ extern "C" {
         for (int i = 0; i < MAX_CAMERA_PLUGIN; i++)
             ZEDController::destroyInstance(i);
     }
+
+    INTERFACE_API void* sl_get_camera_handle(int camera_id) {
+
+        if (ZEDController::isNotCreated(camera_id)) return nullptr;
+
+        return ZEDController::get(camera_id);
+    }
+
 
     INTERFACE_API void sl_unload_instance(int id) {
         ZEDController::destroyInstance(id);
@@ -395,9 +404,27 @@ extern "C" {
 
     //////// Recording //////////////////
 
-    INTERFACE_API int sl_enable_recording(int c_id, const char* filename, enum SL_SVO_COMPRESSION_MODE compression_mode, unsigned int bitrate, int target_fps, bool transcode) {
+    INTERFACE_API int sl_enable_recording(int c_id, const char* filename, enum SL_SVO_COMPRESSION_MODE compression_mode, unsigned int bitrate, int target_fps, bool transcode,
+        unsigned char encryption_key[256], enum SL_SVO_ENCODING_PRESET encoding_preset) {
         if (!ZEDController::get(c_id)->isNull()) {
-            return (int)ZEDController::get(c_id)->enableRecording(filename, (sl::SVO_COMPRESSION_MODE)compression_mode, bitrate, target_fps, transcode);
+            struct SL_RecordingParameters params;
+            params.compression_mode = compression_mode;
+            params.bitrate = bitrate;
+            params.target_framerate = target_fps;
+            params.transcode_streaming_input = transcode;
+            strncpy(reinterpret_cast<char*>(params.video_filename), filename, sizeof(params.video_filename) - 1);
+            reinterpret_cast<char*>(params.video_filename)[sizeof(params.video_filename) - 1] = '\0';
+            memcpy(params.encryption_key, encryption_key, 256);
+            params.encoding_preset = encoding_preset;
+
+            return (int)ZEDController::get(c_id)->enableRecordingFromParams(&params);
+        }
+        return (int)sl::ERROR_CODE::CAMERA_NOT_DETECTED;
+    }
+
+    INTERFACE_API int sl_enable_recording_from_params(int c_id, struct SL_RecordingParameters* c_params) {
+        if (!ZEDController::get(c_id)->isNull()) {
+            return (int)ZEDController::get(c_id)->enableRecordingFromParams(c_params);
         }
         return (int)sl::ERROR_CODE::CAMERA_NOT_DETECTED;
     }
@@ -607,6 +634,22 @@ extern "C" {
             return ZEDController::get(c_id)->zed.getTimestamp(sl::TIME_REFERENCE::CURRENT);
         else
             return 0ULL;
+    }
+
+    INTERFACE_API void sl_set_timestamp_clock(enum SL_TIMESTAMP_CLOCK clock) {
+        sl::setTimestampClock((sl::TIMESTAMP_CLOCK)clock);
+    }
+
+    INTERFACE_API enum SL_TIMESTAMP_CLOCK sl_get_timestamp_clock() {
+        return (enum SL_TIMESTAMP_CLOCK)sl::getTimestampClock();
+    }
+
+    INTERFACE_API void sl_set_max_system_clock_step_ms(float limit_ms) {
+        sl::setMaxSystemClockStepMs(limit_ms);
+    }
+
+    INTERFACE_API float sl_get_max_system_clock_step_ms() {
+        return sl::getMaxSystemClockStepMs();
     }
 
     INTERFACE_API bool sl_is_camera_setting_supported(int c_id, enum SL_VIDEO_SETTINGS setting)
@@ -1700,6 +1743,20 @@ extern "C" {
     INTERFACE_API int sl_retrieve_measure(int c_id, void* ptr, enum SL_MEASURE type, enum SL_MEM mem, int width, int height, void* custream) {
         if (!ZEDController::get(c_id)->isNull()) {
             return (int)ZEDController::get(c_id)->zed.retrieveMeasure(*MAT, (sl::MEASURE)type, (sl::MEM)(mem + 1), sl::Resolution(width, height), (cudaStream_t)custream);
+        }
+        return (int)sl::ERROR_CODE::CAMERA_NOT_DETECTED;
+    }
+
+    INTERFACE_API int sl_retrieve_voxel_measure(int c_id, void* ptr, enum SL_MEASURE type, enum SL_MEM mem, struct SL_VoxelMeasureParameters* c_params, void* stream) {
+        if (!ZEDController::get(c_id)->isNull()) {
+            sl::VoxelMeasureParameters params;
+            if (c_params) {
+                params.voxel_size = c_params->voxel_size;
+                params.centroid = c_params->centroid;
+                params.resolution_mode = (sl::VOXELIZATION_MODE)c_params->resolution_mode;
+                params.resolution_scale = c_params->resolution_scale;
+            }
+            return (int)ZEDController::get(c_id)->zed.retrieveVoxelMeasure(*MAT, (sl::MEASURE)type, (sl::MEM)(mem + 1), params, (cudaStream_t)stream);
         }
         return (int)sl::ERROR_CODE::CAMERA_NOT_DETECTED;
     }
