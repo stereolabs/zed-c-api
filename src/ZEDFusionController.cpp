@@ -160,7 +160,18 @@ SL_FUSION_ERROR_CODE ZEDFusionController::retrieveBodies(struct SL_Bodies* data,
 				for (int k = 0; k < 6; k++)
 					data->body_list[count].position_covariance[k] = p.position_covariance[k];
 
-				data->body_list[count].mask = (int*)(new sl::Mat(p.mask));
+				if (p.mask.isInit()) {
+					sl::Mat* heapMat = new sl::Mat(
+						sl::Resolution(p.mask.getWidth(), p.mask.getHeight()),
+						p.mask.getDataType(),
+						sl::MEM::CPU
+					);
+					heapMat->setFrom(p.mask, sl::COPY_TYPE::CPU_CPU);
+					data->body_list[count].mask = (int*)heapMat;
+				}
+				else {
+					data->body_list[count].mask = nullptr;
+				}
 
 				for (int l = 0; l < p.bounding_box_2d.size(); l++) {
 					data->body_list[count].bounding_box_2d[l].x = (float)p.bounding_box_2d.at(l).x;

@@ -2342,7 +2342,18 @@ static void convertObjects(const sl::Objects& in_data,
             for (int k = 0; k < 6; k++)
                 out_data->object_list[count].position_covariance[k] = p.position_covariance[k];
 
-            out_data->object_list[count].mask = (int*)(new sl::Mat(p.mask));
+            if (p.mask.isInit()) {
+                sl::Mat* heapMat = new sl::Mat(
+                    sl::Resolution(p.mask.getWidth(), p.mask.getHeight()),
+                    p.mask.getDataType(),
+                    sl::MEM::CPU
+                );
+                heapMat->setFrom(p.mask, sl::COPY_TYPE::CPU_CPU);
+                out_data->object_list[count].mask = (int*)heapMat;
+            } else {
+                out_data->object_list[count].mask = nullptr;
+            }
+
 
             for (int l = 0; l < p.bounding_box_2d.size(); l++) {
                 out_data->object_list[count].bounding_box_2d[l].x = (float)p.bounding_box_2d.at(l).x;
@@ -2531,7 +2542,17 @@ static void convertBodies(const sl::Bodies& bodies,
             for (int k = 0; k < 6; k++)
                 data->body_list[count].position_covariance[k] = p.position_covariance[k];
 
-            data->body_list[count].mask = (int*)(new sl::Mat(p.mask));
+            if (p.mask.isInit()) {
+                sl::Mat* heapMat = new sl::Mat(
+                    sl::Resolution(p.mask.getWidth(), p.mask.getHeight()),
+                    p.mask.getDataType(),
+                    sl::MEM::CPU
+                );
+                heapMat->setFrom(p.mask, sl::COPY_TYPE::CPU_CPU);
+                data->body_list[count].mask = (int*)heapMat;
+            } else {
+                data->body_list[count].mask = nullptr;
+            }
 
             // 3D Bounding box in world frame
             for (int m = 0; m < 8; m++)
