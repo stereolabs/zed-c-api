@@ -57,10 +57,9 @@ public:
     }
 
     static void destroyInstance(int i) {
-        if (!instance[i]) // Only allow one instance of class to be generated.
+        if (instance[i])
             delete instance[i];
         instance[i] = nullptr;
-
     }
 
     static bool isNotCreated(int i) {

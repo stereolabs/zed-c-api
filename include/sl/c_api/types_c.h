@@ -1824,8 +1824,7 @@ struct SL_RuntimeParameters
 	/**
 	\brief Defines if the saturated area (luminance>=255) must be removed from depth map estimation.
 
-	Default: true
-	\note It is recommended to keep this parameter at true because saturated area can create false detection.
+	Default: false
 	 */
 	bool remove_saturated_areas;
 };

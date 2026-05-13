@@ -155,6 +155,11 @@ extern "C" {
 		return ZEDController::get(camera_id)->initFromStream(init_parameters, ip, stream_port, output_file, opt_settings_path, opencv_calib_path);
     }
 
+    INTERFACE_API int sl_open_camera_from_gmsl(int camera_id, SL_InitParameters* init_parameters, const unsigned int serial_number, int gmsl_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path)
+    {
+        return ZEDController::get(camera_id)->initFromGMSL(init_parameters, serial_number, gmsl_port, output_file, opt_settings_path, opencv_calib_path);
+    }
+
     INTERFACE_API bool sl_is_opened(int c_id)
     {
 
