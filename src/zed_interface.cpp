@@ -1176,6 +1176,21 @@ extern "C" {
             return nullptr;
     }
 
+    /*********************************************** Encoded Stream Packet *********************************/
+    INTERFACE_API int sl_retrieve_encoded_stream_packet(int cameraID, enum SL_ENCODED_STREAM_SOURCE source, struct SL_EncodedStreamPacket* out_packet) {
+        if (!out_packet)
+            return (int)sl::ERROR_CODE::FAILURE;
+        if (ZEDController::get(cameraID)->isNull())
+            return (int)sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
+        return (int)ZEDController::get(cameraID)->retrieveEncodedStreamPacket(
+            static_cast<sl::ENCODED_STREAM_SOURCE>(source), out_packet);
+    }
+
+    INTERFACE_API void sl_get_encoded_streams_info(int cameraID, struct SL_EncodedStreamInfo out_infos[SL_ENCODED_STREAM_SOURCE_COUNT]) {
+        if (!out_infos) return;
+        ZEDController::get(cameraID)->getEncodedStreamsInfo(out_infos);
+    }
+
     /*********************************************** Save to File utils ***********************************/
     INTERFACE_API int sl_save_current_image(int cameraID, enum SL_VIEW view, const char* fileName) {
         if (!ZEDController::get(cameraID)->isNull()) {
@@ -1292,6 +1307,15 @@ extern "C" {
         ///* error */ memcpy(id, sdk_id.c_str(), sdk_id.size() * sizeof(char));
         /* works */ memcpy(id, sdk_id.c_str(), (sdk_id.size()+1) * sizeof(char));
         return sdk_id.size();
+    }
+
+    INTERFACE_API int sl_ingest_custom_depth(int c_id, void* map_ptr, enum SL_CUSTOM_DEPTH_FORMAT format, float scale, void* confidence_ptr, enum SL_CUSTOM_CONFIDENCE_CONVENTION confidence_convention, unsigned long long timestamp_ns) {
+        if (!ZEDController::get(c_id)->isNull()) {
+            return (int)ZEDController::get(c_id)->ingestCustomDepth((sl::Mat*)map_ptr, (int)format, scale, (sl::Mat*)confidence_ptr, (int)confidence_convention, timestamp_ns);
+        }
+        else {
+            return (int)sl::ERROR_CODE::FAILURE;
+        }
     }
 
     INTERFACE_API int sl_ingest_custom_box_objects(int c_id, int nb_objects, struct SL_CustomBoxObjectData* objects_in, unsigned int instance_id) {
