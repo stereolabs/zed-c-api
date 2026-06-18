@@ -1326,6 +1326,7 @@ SL_CameraParameters convertCamParameters(sl::CameraParameters input) {
     output.image_size.width = input.image_size.width;
 
     output.focal_length_metric = input.focal_length_metric;
+    output.lens_distortion_model = (SL_LENS_DISTORTION_MODEL)input.lens_distortion_model;
 
     return output;
 }
@@ -2019,6 +2020,44 @@ void ZEDController::disableStreaming() {
     return;
 }
 
+sl::ERROR_CODE ZEDController::retrieveEncodedStreamPacket(sl::ENCODED_STREAM_SOURCE source, SL_EncodedStreamPacket* out_packet) {
+    if (isNull() || !out_packet)
+        return sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
+
+    sl::EncodedStreamPacket pkt;
+    sl::ERROR_CODE err = zed.retrieveEncodedStreamPacket(pkt, source);
+    if (err != sl::ERROR_CODE::SUCCESS)
+        return err;
+
+    out_packet->data         = pkt.data;
+    out_packet->size         = static_cast<uint64_t>(pkt.size);
+    out_packet->timestamp_ns = pkt.timestamp.getNanoseconds();
+    out_packet->codec        = static_cast<SL_STREAMING_CODEC>(pkt.codec);
+    out_packet->is_keyframe  = pkt.is_keyframe ? 1 : 0;
+    out_packet->source       = static_cast<SL_ENCODED_STREAM_SOURCE>(pkt.source);
+    return sl::ERROR_CODE::SUCCESS;
+}
+
+void ZEDController::getEncodedStreamsInfo(SL_EncodedStreamInfo out_infos[SL_ENCODED_STREAM_SOURCE_COUNT]) {
+    if (!out_infos) return;
+    for (int i = 0; i < SL_ENCODED_STREAM_SOURCE_COUNT; ++i) {
+        out_infos[i] = SL_EncodedStreamInfo{};
+        out_infos[i].source = static_cast<SL_ENCODED_STREAM_SOURCE>(i);
+    }
+    if (isNull()) return;
+
+    std::vector<sl::EncodedStreamInfo> infos = zed.getEncodedStreamsInfo();
+    for (const auto& info : infos) {
+        const int idx = static_cast<int>(info.source);
+        if (idx < 0 || idx >= SL_ENCODED_STREAM_SOURCE_COUNT) continue;
+        out_infos[idx].source       = static_cast<SL_ENCODED_STREAM_SOURCE>(info.source);
+        out_infos[idx].active       = info.active ? 1 : 0;
+        out_infos[idx].codec        = static_cast<SL_STREAMING_CODEC>(info.codec);
+        out_infos[idx].bitrate_kbps = info.bitrate_kbps;
+        out_infos[idx].is_lossless  = info.is_lossless ? 1 : 0;
+    }
+}
+
 sl::ERROR_CODE ZEDController::saveCurrentImage(sl::VIEW view, const char* filename) {
     sl::ERROR_CODE v = sl::ERROR_CODE::FAILURE;
     if (!isNull()) {
@@ -2264,6 +2303,26 @@ sl::ERROR_CODE ZEDController::ingestCustomBoxObjectData(int nb_objects, SL_Custo
         }
         sl::ERROR_CODE err = zed.ingestCustomBoxObjects(objs, instance_id);
         return err;
+    }
+    return sl::ERROR_CODE::CAMERA_NOT_DETECTED;
+}
+
+sl::ERROR_CODE ZEDController::ingestCustomDepth(sl::Mat* map_ptr, int format, float scale, sl::Mat* confidence_ptr, int confidence_convention, unsigned long long timestamp_ns)
+{
+    if (!isNull()) {
+        if (map_ptr == nullptr)
+            return sl::ERROR_CODE::INVALID_FUNCTION_PARAMETERS;
+
+        sl::CustomDepthData data;
+        data.map = *map_ptr; // shallow copy, the data is consumed during the ingest call
+        data.format = static_cast<sl::CUSTOM_DEPTH_FORMAT>(format);
+        data.scale = scale;
+        if (confidence_ptr != nullptr)
+            data.confidence = *confidence_ptr;
+        data.confidence_convention = static_cast<sl::CUSTOM_CONFIDENCE_CONVENTION>(confidence_convention);
+        data.timestamp = sl::Timestamp(timestamp_ns);
+
+        return zed.ingestCustomDepth(data);
     }
     return sl::ERROR_CODE::CAMERA_NOT_DETECTED;
 }
