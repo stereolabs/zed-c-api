@@ -617,6 +617,7 @@ sl::ERROR_CODE ZEDController::getSensorsData(SL_SensorsData* sensorData, int tim
 sl::ERROR_CODE ZEDController::getSensorsDataBatchCount(int* count)
 {
     if (!isNull()) {
+        sensorsDataBatch.clear();
         sl::ERROR_CODE err = zed.getSensorsDataBatch(sensorsDataBatch);
         if (err == sl::ERROR_CODE::SUCCESS) {
             *count = sensorsDataBatch.size();
