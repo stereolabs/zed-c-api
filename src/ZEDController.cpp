@@ -1593,7 +1593,20 @@ sl::ERROR_CODE ZEDController::retrieveChunks(const int maxSubmesh, float* vertic
 
             bool isTextureCalled = areTextureReady && uvs != nullptr && texturePtr != nullptr;
             if (isTextureCalled) {
-                texturePtr = mesh.texture.getPtr<sl::uchar1>(sl::MEM::CPU);
+                const unsigned char* src = mesh.texture.getPtr<sl::uchar1>(sl::MEM::CPU);
+                size_t stepBytes = mesh.texture.getStepBytes(sl::MEM::CPU);
+                size_t width = mesh.texture.getWidth();
+                size_t height = mesh.texture.getHeight();
+                size_t rowBytes = width * 4;
+
+                if (stepBytes == rowBytes) {
+                    memcpy(texturePtr, src, rowBytes * height);
+                }
+                else {
+                    for (size_t row = 0; row < height; row++) {
+                        memcpy(texturePtr + row * rowBytes, src + row * stepBytes, rowBytes);
+                    }
+                }
             }
 
             for (int i = 0; i < std::min(maxSubmesh, int(mesh.chunks.size())); i++) {
@@ -1623,43 +1636,22 @@ sl::ERROR_CODE ZEDController::retrieveMesh(float* vertices, int* triangles, unsi
             int offsetVertices = 0, offsetTriangles = 0, offsetUvs = 0, offsetColors = 0;
 
             bool isTextureCalled = areTextureReady && uvs != nullptr && texturePtr != nullptr;
-            cudaGraphicsResource_t pcuImageRes = nullptr;
             if (isTextureCalled) {
+                const unsigned char* src = mesh.texture.getPtr<sl::uchar1>(sl::MEM::CPU);
+                size_t stepBytes = mesh.texture.getStepBytes(sl::MEM::CPU);
+                size_t width = mesh.texture.getWidth();
+                size_t height = mesh.texture.getHeight();
+                size_t rowBytes = width * 4;
 
-                texturePtr = mesh.texture.getPtr<sl::uchar1>(sl::MEM::CPU);
-#if 0
-#ifdef _WIN32
-                cudaGraphicsD3D11RegisterResource(&pcuImageRes, (ID3D11Texture2D*)texturePtr, cudaGraphicsMapFlags::cudaGraphicsMapFlagsNone);
-                cudaError_t error = cudaGraphicsMapResources(1, &pcuImageRes, 0);
-                cudaArray_t ArrIm;
+                if (stepBytes == rowBytes) {
+                    memcpy(texturePtr, src, rowBytes * height);
+                }
+                else {
+                    for (size_t row = 0; row < height; row++) {
+                        memcpy(texturePtr + row * rowBytes, src + row * stepBytes, rowBytes);
+                    }
+                }
 
-                error = cudaGraphicsSubResourceGetMappedArray(&ArrIm, pcuImageRes, 0, 0);
-                sl::Mat texture = mesh.texture;
-
-                error = cudaMemcpy2DToArray(ArrIm, 0, 0,
-                    texture.getPtr<sl::uchar1>(sl::MEM::CPU), texture.getStepBytes(sl::MEM::CPU),
-                    texture.getWidthBytes(),
-                    texture.getHeight(), cudaMemcpyHostToDevice);
-                cudaGraphicsUnmapResources(1, &pcuImageRes, 0);
-                cudaGraphicsUnregisterResource(pcuImageRes);
-
-#elif __unix__
-                cudaGraphicsGLRegisterImage(&pcuImageRes, texturePtr, GL_TEXTURE_2D, cudaGraphicsRegisterFlagsNone);
-                cudaError_t error = cudaGraphicsMapResources(1, &pcuImageRes, 0);
-                cudaArray_t ArrIm;
-
-                error = cudaGraphicsSubResourceGetMappedArray(&ArrIm, pcuImageRes, 0, 0);
-                sl::Mat texture = mesh.texture;
-
-                error = cudaMemcpy2DToArray(ArrIm, 0, 0,
-                    texture.getPtr<sl::uchar1>(sl::MEM::CPU), texture.getStepBytes(sl::MEM::CPU),
-                    texture.getWidthBytes(),
-                    texture.getHeight(), cudaMemcpyHostToDevice);
-                cudaGraphicsUnmapResources(1, &pcuImageRes, 0);
-                cudaGraphicsUnregisterResource(pcuImageRes);
-
-#endif
-#endif
             }
             int startIndexUV = 0;
             for (int i = 0; i < std::min(maxSubmesh, int(mesh.chunks.size())); i++) {
@@ -1900,11 +1892,22 @@ sl::ERROR_CODE ZEDController::updateWholeMesh(int* nb_vertices, int* nb_triangle
 sl::ERROR_CODE ZEDController::retrieveWholeMesh(float* vertices, int* triangles, unsigned char* colors, float* uvs, unsigned char* texture_ptr) {
     if (!isNull() && !isTextured) {
         if (isMeshUpdated) {
-
             bool isTextureCalled = areTextureReady && uvs != nullptr && texture_ptr != nullptr;
             if (isTextureCalled) {
-                //texture_ptr = mesh.texture.getPtr<sl::uchar1>(sl::MEM::CPU);
-                memcpy(&texture_ptr[0], mesh.texture.getPtr<sl::uchar1>(sl::MEM::CPU), mesh.texture.getStepBytes() * mesh.texture.getHeight());
+                const unsigned char* src = mesh.texture.getPtr<sl::uchar1>(sl::MEM::CPU);
+                size_t stepBytes = mesh.texture.getStepBytes(sl::MEM::CPU);
+                size_t width = mesh.texture.getWidth();
+                size_t height = mesh.texture.getHeight();
+                size_t rowBytes = width * 4;
+
+                if (stepBytes == rowBytes) {
+                    memcpy(texture_ptr, src, rowBytes * height);
+                }
+                else {
+                    for (size_t row = 0; row < height; row++) {
+                        memcpy(texture_ptr + row * rowBytes, src + row * stepBytes, rowBytes);
+                    }
+                }
             }
 
             memcpy(&vertices[0], mesh.vertices.data(), sizeof(sl::float3) * int(mesh.vertices.size()));
