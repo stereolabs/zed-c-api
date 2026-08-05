@@ -68,6 +68,7 @@ static void copy_init_parameters(sl::InitParameters& sdk_parameters, SL_InitPara
     sdk_parameters.svo_real_time_mode = init_parameters->svo_real_time_mode;
     sdk_parameters.depth_minimum_distance = init_parameters->depth_minimum_distance;
     sdk_parameters.depth_mode = (sl::DEPTH_MODE)init_parameters->depth_mode;
+    sdk_parameters.depth_precision = (sl::DEPTH_PRECISION)init_parameters->depth_precision;
     sdk_parameters.coordinate_system = (sl::COORDINATE_SYSTEM)init_parameters->coordinate_system;
     sdk_parameters.coordinate_units = (sl::UNIT)init_parameters->coordinate_unit;
     sdk_parameters.camera_image_flip = init_parameters->camera_image_flip;
@@ -244,6 +245,7 @@ SL_InitParameters* ZEDController::getInitParameters() {
     initParams->enable_right_side_measure = initParameters.enable_right_side_measure;
     initParams->svo_real_time_mode = initParameters.svo_real_time_mode;
     initParams->depth_mode = (SL_DEPTH_MODE)initParameters.depth_mode;
+    initParams->depth_precision = (SL_DEPTH_PRECISION)initParameters.depth_precision;
     initParams->depth_stabilization = initParameters.depth_stabilization;
     initParams->depth_maximum_distance = initParameters.depth_maximum_distance;
     initParams->depth_minimum_distance = initParameters.depth_minimum_distance;
@@ -286,6 +288,7 @@ SL_PositionalTrackingParameters* ZEDController::getPositionalTrackingParameters(
     c_trackingParams->enable_area_memory = trackingParams.enable_area_memory;
     c_trackingParams->enable_imu_fusion = trackingParams.enable_imu_fusion;
     c_trackingParams->enable_pose_smoothing = trackingParams.enable_pose_smoothing;
+    c_trackingParams->compute_preference = (enum SL_COMPUTE_PREFERENCE)trackingParams.compute_preference;
     sl::Translation t = trackingParams.initial_world_transform.getTranslation();
     SL_Vector3 vec;
     vec.x = t.x;
@@ -305,6 +308,8 @@ SL_PositionalTrackingParameters* ZEDController::getPositionalTrackingParameters(
     c_trackingParams->depth_min_range = trackingParams.depth_min_range;
     c_trackingParams->set_gravity_as_origin = trackingParams.set_gravity_as_origin;
     c_trackingParams->mode = (SL_POSITIONAL_TRACKING_MODE)trackingParams.mode;
+    c_trackingParams->enable_localization_only = trackingParams.enable_localization_only;
+    c_trackingParams->enable_2d_ground_mode = trackingParams.enable_2d_ground_mode;
     return c_trackingParams;
 }
 
@@ -333,7 +338,12 @@ SL_HealthStatus* ZEDController::getHealthStatus()
 
     sl::HealthStatus health_status = zed.getHealthStatus();
 
-    memcpy(&c_healthStatus, &health_status, sizeof(SL_HealthStatus));
+    c_healthStatus->enabled = health_status.enabled;
+    c_healthStatus->low_image_quality = health_status.low_image_quality;
+    c_healthStatus->low_lighting = health_status.low_lighting;
+    c_healthStatus->low_depth_reliability = health_status.low_depth_reliability;
+    c_healthStatus->low_motion_sensors_reliability = health_status.low_motion_sensors_reliability;
+    c_healthStatus->duplicated_image = health_status.duplicated_image;
 
     return c_healthStatus;
 }
@@ -383,6 +393,9 @@ sl::ERROR_CODE ZEDController::enableTracking(SL_PositionalTrackingParameters* tr
         params.depth_min_range = tracking_params->depth_min_range;
         params.set_gravity_as_origin = tracking_params->set_gravity_as_origin;
         params.mode = (sl::POSITIONAL_TRACKING_MODE)tracking_params->mode;
+        params.enable_localization_only = tracking_params->enable_localization_only;
+        params.enable_2d_ground_mode = tracking_params->enable_2d_ground_mode;
+        params.compute_preference = (sl::COMPUTE_PREFERENCE)tracking_params->compute_preference;
         if (area_file_path != nullptr) {
             if (std::string(area_file_path) != "") {
                 params.area_file_path = area_file_path;
@@ -570,12 +583,14 @@ sl::ERROR_CODE ZEDController::getSensorsData(SL_SensorsData* sensorData, int tim
             sensorData->imu.linear_acceleration_convariance.p[i] = tmp_sensor_data.imu.linear_acceleration_covariance.r[i];
             sensorData->imu.orientation_covariance.p[i] = tmp_sensor_data.imu.pose_covariance.r[i];
         }
+        sensorData->imu.effective_rate = tmp_sensor_data.imu.effective_rate;
 
         ///Barometer
         sensorData->barometer.is_available = tmp_sensor_data.barometer.is_available;
         sensorData->barometer.timestamp_ns = tmp_sensor_data.barometer.timestamp;
         sensorData->barometer.pressure = tmp_sensor_data.barometer.pressure;
         sensorData->barometer.relative_altitude = tmp_sensor_data.barometer.relative_altitude;
+        sensorData->barometer.effective_rate = tmp_sensor_data.barometer.effective_rate;
 
         ///Magneto
         sensorData->magnetometer.is_available = tmp_sensor_data.magnetometer.is_available;
@@ -677,12 +692,14 @@ sl::ERROR_CODE ZEDController::getSensorsDataBatch(SL_SensorsData** data)
                     sensorData->imu.linear_acceleration_convariance.p[i] = tmp_sensor_data.imu.linear_acceleration_covariance.r[i];
                     sensorData->imu.orientation_covariance.p[i] = tmp_sensor_data.imu.pose_covariance.r[i];
                 }
+                sensorData->imu.effective_rate = tmp_sensor_data.imu.effective_rate;
 
                 ///Barometer
                 sensorData->barometer.is_available = tmp_sensor_data.barometer.is_available;
                 sensorData->barometer.timestamp_ns = tmp_sensor_data.barometer.timestamp;
                 sensorData->barometer.pressure = tmp_sensor_data.barometer.pressure;
                 sensorData->barometer.relative_altitude = tmp_sensor_data.barometer.relative_altitude;
+                sensorData->barometer.effective_rate = tmp_sensor_data.barometer.effective_rate;
 
                 ///Magneto
                 sensorData->magnetometer.is_available = tmp_sensor_data.magnetometer.is_available;
@@ -843,6 +860,8 @@ SL_RecordingStatus* ZEDController::getRecordingStatus() {
         c_recording_status->is_paused = recStatus.is_paused;
         c_recording_status->is_recording = recStatus.is_recording;
         c_recording_status->status = recStatus.status;
+        c_recording_status->number_frames_ingested = recStatus.number_frames_ingested;
+        c_recording_status->number_frames_encoded = recStatus.number_frames_encoded;
 
         return c_recording_status;
     }
@@ -2388,6 +2407,11 @@ static void convertObjects(const sl::Objects& in_data,
     out_data->detection_model = (SL_OBJECT_DETECTION_MODEL)current_object_detection_model;
     out_data->timestamp = in_data.timestamp;
     out_data->nb_objects = in_data.object_list.size();
+
+    const sl::String& group_name = in_data.fused_objects_group_name;
+    const size_t group_name_len = std::min<size_t>(group_name.size(), sizeof(out_data->fused_objects_group_name) - 1);
+    memcpy(out_data->fused_objects_group_name, group_name.c_str(), group_name_len);
+    out_data->fused_objects_group_name[group_name_len] = '\0';
 
     int count = 0;
     for (const sl::ObjectData& p : in_data.object_list) {

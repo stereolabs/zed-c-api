@@ -603,6 +603,17 @@ extern "C" {
     INTERFACE_API unsigned long long sl_get_current_timestamp(int camera_id);
 
     /**
+    \brief Get a timestamp at the given time reference.
+
+    \note It should be called after a sl_grab() when using \ref SL_TIME_REFERENCE_IMAGE or
+    \ref SL_TIME_REFERENCE_IMAGE_CENTER_OF_EXPOSURE.
+    \param camera_id : Id of the camera instance.
+    \param time_reference : The desired \ref SL_TIME_REFERENCE.
+    \return The timestamp, or 0 if the requested reference is not available on this input.
+     */
+    INTERFACE_API unsigned long long sl_get_timestamp(int camera_id, enum SL_TIME_REFERENCE time_reference);
+
+    /**
     \brief Sets the clock source used for all timestamps produced by the ZED SDK.
     \param clock : The desired \ref SL_TIMESTAMP_CLOCK.
      */

@@ -641,6 +641,13 @@ extern "C" {
             return 0ULL;
     }
 
+    INTERFACE_API unsigned long long sl_get_timestamp(int c_id, enum SL_TIME_REFERENCE time_reference) {
+        if (!ZEDController::get(c_id)->isNull())
+            return ZEDController::get(c_id)->zed.getTimestamp((sl::TIME_REFERENCE)time_reference);
+        else
+            return 0ULL;
+    }
+
     INTERFACE_API void sl_set_timestamp_clock(enum SL_TIMESTAMP_CLOCK clock) {
         sl::setTimestampClock((sl::TIMESTAMP_CLOCK)clock);
     }
