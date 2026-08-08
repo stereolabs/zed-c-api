@@ -634,16 +634,18 @@ sl::ERROR_CODE ZEDController::getSensorsDataBatch(SL_SensorsData** data)
 {
     if (!isNull())
     {
+        if (data == nullptr)
+            return sl::ERROR_CODE::INVALID_FUNCTION_PARAMETERS;
+
         if (isSensorsBatchReady)
         {
             int size = sensorsDataBatch.size();
-
-            memset(*data, 0, sizeof(SL_SensorsData) * size);
+            sensorsDataBatchC.assign(size, {});
+            *data = sensorsDataBatchC.data();
 
             for (int i = 0; i < size; i++)
             {
-
-                SL_SensorsData* sensorData = data[i];
+                SL_SensorsData* sensorData = &sensorsDataBatchC[i];
                 sl::SensorsData tmp_sensor_data = sensorsDataBatch[i];
 
                 sensorData->camera_moving_state = (int)tmp_sensor_data.camera_moving_state;
@@ -672,10 +674,10 @@ sl::ERROR_CODE ZEDController::getSensorsDataBatch(SL_SensorsData** data)
                 sensorData->imu.orientation.z = tmp_sensor_data.imu.pose.getOrientation().z;
                 sensorData->imu.orientation.w = tmp_sensor_data.imu.pose.getOrientation().w;
 
-                for (int i = 0; i < 9; i++) {
-                    sensorData->imu.angular_velocity_convariance.p[i] = tmp_sensor_data.imu.angular_velocity_covariance.r[i];
-                    sensorData->imu.linear_acceleration_convariance.p[i] = tmp_sensor_data.imu.linear_acceleration_covariance.r[i];
-                    sensorData->imu.orientation_covariance.p[i] = tmp_sensor_data.imu.pose_covariance.r[i];
+                for (int covariance_index = 0; covariance_index < 9; covariance_index++) {
+                    sensorData->imu.angular_velocity_convariance.p[covariance_index] = tmp_sensor_data.imu.angular_velocity_covariance.r[covariance_index];
+                    sensorData->imu.linear_acceleration_convariance.p[covariance_index] = tmp_sensor_data.imu.linear_acceleration_covariance.r[covariance_index];
+                    sensorData->imu.orientation_covariance.p[covariance_index] = tmp_sensor_data.imu.pose_covariance.r[covariance_index];
                 }
 
                 ///Barometer
