@@ -936,7 +936,8 @@ extern "C" {
     INTERFACE_API int sl_get_sensors_data_batch_count(int camera_id, int* count);
     /**
     \brief Retrieves all SL_SensorsData associated to most recent grabbed frame in the specified \ref COORDINATE_SYSTEM of InitParameters.
-	\note sl_get_sensors_data_batch needs to be called before this function to retrieve the size of the imu batch array.
+	\note sl_get_sensors_data_batch_count needs to be called before this function to retrieve the size of the imu batch array.
+    \note The returned array is owned by the API and remains valid until the next call to this function for the same camera.
     \param [out] data : The SensorsData array to store the data.
     \param camera_id : Id of the camera instance.
     \return \ref SL_ERROR_CODE "SL_ERROR_CODE_SUCCESS" if sensors data have been extracted.

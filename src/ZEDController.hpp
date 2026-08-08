@@ -290,6 +290,7 @@ private:
 
     bool isSensorsBatchReady = false;
     std::vector<sl::SensorsData> sensorsDataBatch;
+    std::vector<SL_SensorsData> sensorsDataBatchC;
 
     bool saveTexture;
     sl::Mesh mesh;
