@@ -20,6 +20,10 @@
 #include <math.h>
 #include <string.h>
 #include <wchar.h>
+
+#ifndef _WIN32
+#  define _strdup strdup
+#endif
 #include <string>
 #include <vector>
 
@@ -113,7 +117,7 @@ extern "C" {
         ZEDController::get(id)->destroy();
     }
 
-    INTERFACE_API int sl_open_camera(int id, SL_InitParameters* init_parameters, const unsigned int serial_number, const char* path_svo, const char* ip, int stream_port, int gmsl_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
+    INTERFACE_API int sl_open_camera(int id, SL_InitParameters* init_parameters, const unsigned int serial_number, const char* path_svo, const char* ip, int stream_port, int bus_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
         int err = (int)sl::ERROR_CODE::CAMERA_NOT_DETECTED;
         if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::SVO)
         {
@@ -125,7 +129,15 @@ extern "C" {
         }
         else if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::GMSL)
         {
-            err = ZEDController::get(id)->initFromGMSL(init_parameters, serial_number, gmsl_port, output_file, opt_settings_path, opencv_calib_path);
+            err = ZEDController::get(id)->initFromGMSL(init_parameters, serial_number, bus_port, output_file, opt_settings_path, opencv_calib_path);
+        }
+        else if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::MIPI)
+        {
+            err = ZEDController::get(id)->initFromMIPI(init_parameters, serial_number, bus_port, output_file, opt_settings_path, opencv_calib_path);
+        }
+        else if (init_parameters->input_type == (SL_INPUT_TYPE)sl::INPUT_TYPE::HOLOSCAN)
+        {
+            err = ZEDController::get(id)->initFromHoloscan(init_parameters, serial_number, bus_port, output_file, opt_settings_path, opencv_calib_path);
         }
         else // USB
         {
@@ -155,9 +167,9 @@ extern "C" {
 		return ZEDController::get(camera_id)->initFromStream(init_parameters, ip, stream_port, output_file, opt_settings_path, opencv_calib_path);
     }
 
-    INTERFACE_API int sl_open_camera_from_gmsl(int camera_id, SL_InitParameters* init_parameters, const unsigned int serial_number, int gmsl_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path)
+    INTERFACE_API int sl_open_camera_from_gmsl(int camera_id, SL_InitParameters* init_parameters, const unsigned int serial_number, int bus_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path)
     {
-        return ZEDController::get(camera_id)->initFromGMSL(init_parameters, serial_number, gmsl_port, output_file, opt_settings_path, opencv_calib_path);
+        return ZEDController::get(camera_id)->initFromGMSL(init_parameters, serial_number, bus_port, output_file, opt_settings_path, opencv_calib_path);
     }
 
     INTERFACE_API bool sl_is_opened(int c_id)
@@ -268,7 +280,12 @@ extern "C" {
 
     INTERFACE_API char* sl_get_sdk_version() {
         std::string s = std::string(sl::Camera::getSDKVersion().c_str());
-        return strdup(s.c_str());  // allocates and copies
+        // caller-owned, release with sl_free(). MSVC deprecates the POSIX name.
+#ifdef _WIN32
+        return _strdup(s.c_str());
+#else
+        return strdup(s.c_str());
+#endif
     }
 
     INTERFACE_API int sl_convert_coordinate_system(struct SL_Quaternion* rotation, struct SL_Vector3* translation, enum SL_COORDINATE_SYSTEM coord_system_src, enum SL_COORDINATE_SYSTEM coord_system_dest) {
@@ -1226,7 +1243,8 @@ extern "C" {
 
 
     INTERFACE_API struct SL_AI_Model_status* sl_check_AI_model_status(enum SL_AI_MODELS model, int gpu_id) {
-        SL_AI_Model_status* status = new SL_AI_Model_status();
+        SL_AI_Model_status* status = (SL_AI_Model_status*)malloc(sizeof(SL_AI_Model_status));
+        if (!status) return nullptr;
         memset(status, 0, sizeof(SL_AI_Model_status));
         sl::AI_Model_status zed_status = sl::checkAIModelStatus((sl::AI_MODELS)model, gpu_id);
 
@@ -1237,6 +1255,11 @@ extern "C" {
 
     INTERFACE_API int sl_optimize_AI_model(enum SL_AI_MODELS model, int gpu_id) {
         return (int)sl::optimizeAIModel((sl::AI_MODELS)model, gpu_id);
+    }
+
+    INTERFACE_API int sl_optimize_custom_AI_model(const char* custom_onnx_file, struct SL_Resolution custom_onnx_dynamic_input_shape, int gpu_id) {
+        return (int)sl::optimizeCustomAIModel(sl::String(custom_onnx_file ? custom_onnx_file : ""),
+            sl::Resolution(custom_onnx_dynamic_input_shape.width, custom_onnx_dynamic_input_shape.height), gpu_id);
     }
 
     INTERFACE_API int sl_enable_object_detection(int c_id, SL_ObjectDetectionParameters* params) {
@@ -2006,8 +2029,8 @@ extern "C" {
         return (int)MAT->read(filePath);
     }
 
-    INTERFACE_API int sl_mat_write(void* ptr, const char* filePath) {
-        return (int)(MAT->write(filePath));
+    INTERFACE_API int sl_mat_write(void* ptr, const char* filePath, int compression_level) {
+        return (int)(MAT->write(filePath, sl::MEM::CPU, compression_level));
     }
 
     INTERFACE_API int sl_mat_get_width(void* ptr) {
