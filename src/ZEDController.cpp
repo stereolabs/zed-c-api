@@ -68,6 +68,7 @@ static void copy_init_parameters(sl::InitParameters& sdk_parameters, SL_InitPara
     sdk_parameters.svo_real_time_mode = init_parameters->svo_real_time_mode;
     sdk_parameters.depth_minimum_distance = init_parameters->depth_minimum_distance;
     sdk_parameters.depth_mode = (sl::DEPTH_MODE)init_parameters->depth_mode;
+    sdk_parameters.depth_precision = (sl::DEPTH_PRECISION)init_parameters->depth_precision;
     sdk_parameters.coordinate_system = (sl::COORDINATE_SYSTEM)init_parameters->coordinate_system;
     sdk_parameters.coordinate_units = (sl::UNIT)init_parameters->coordinate_unit;
     sdk_parameters.camera_image_flip = init_parameters->camera_image_flip;
@@ -88,6 +89,7 @@ static void copy_init_parameters(sl::InitParameters& sdk_parameters, SL_InitPara
     sdk_parameters.enable_image_validity_check = init_parameters->enable_image_validity_check;
     sdk_parameters.maximum_working_resolution = sl::Resolution(init_parameters->maximum_working_resolution.width, init_parameters->maximum_working_resolution.height);
     sdk_parameters.svo_decryption_key = reinterpret_cast<const char*>(init_parameters->svo_decryption_key);
+    sdk_parameters.allow_depth_cuda_graph = init_parameters->allow_depth_cuda_graph;
 }
 
 int ZEDController::initFromUSB(SL_InitParameters* params, const unsigned int serial_number, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
@@ -151,19 +153,37 @@ int ZEDController::initFromStream(SL_InitParameters* params, const char* ip, int
     return open();
 }
 
-int ZEDController::initFromGMSL(SL_InitParameters* params, const unsigned int serial_number, int gmsl_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
+int ZEDController::initFromGMSL(SL_InitParameters* params, const unsigned int serial_number, int bus_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
+    return initFromBus(params, serial_number, bus_port, output_file, opt_settings_path, opencv_calib_path, sl::BUS_TYPE::GMSL);
+}
+
+int ZEDController::initFromMIPI(SL_InitParameters* params, const unsigned int serial_number, int bus_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
+    return initFromBus(params, serial_number, bus_port, output_file, opt_settings_path, opencv_calib_path, sl::BUS_TYPE::MIPI);
+}
+
+int ZEDController::initFromHoloscan(SL_InitParameters* params, const unsigned int serial_number, int bus_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
+    return initFromBus(params, serial_number, bus_port, output_file, opt_settings_path, opencv_calib_path, sl::BUS_TYPE::HOLOSCAN);
+}
+
+int ZEDController::initFromBus(SL_InitParameters* params, const unsigned int serial_number, int bus_port, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path, sl::BUS_TYPE bus_type) {
 
     char buffer_verbose[2048];
     if (cameraOpened) {
-        sprintf(buffer_verbose, "[initFromGMSL] Camera already opened %d = %d return success", params->camera_device_id, camera_ID);
+        sprintf(buffer_verbose, "[initFromBus] Camera already opened %d = %d return success", params->camera_device_id, camera_ID);
         return 0;
     }
-    sprintf(buffer_verbose, "ENTER ZEDController::initFromGMSL %d = %d", gmsl_port, camera_ID);
+    sprintf(buffer_verbose, "ENTER ZEDController::initFromBus %d = %d", bus_port, camera_ID);
     copy_init_parameters(initParams, params, output_file, opt_settings_path, opencv_calib_path);
 
-    if (gmsl_port >= 0)
+    if (bus_port >= 0)
     {
-        initParams.input.setFromGMSLPort(gmsl_port);
+        // One port argument, one setter per bus: they resolve to distinct inputs downstream.
+        switch (bus_type)
+        {
+        case sl::BUS_TYPE::MIPI:     initParams.input.setFromMIPIPort(bus_port); break;
+        case sl::BUS_TYPE::HOLOSCAN: initParams.input.setFromHoloscanPort(bus_port); break;
+        default:                     initParams.input.setFromGMSLPort(bus_port); break;
+        }
     }
     else if (serial_number > 0)
     {
@@ -171,7 +191,7 @@ int ZEDController::initFromGMSL(SL_InitParameters* params, const unsigned int se
     }
     else
     {
-        initParams.input.setFromCameraID(params->camera_device_id, sl::BUS_TYPE::GMSL);
+        initParams.input.setFromCameraID(params->camera_device_id, bus_type);
     }
 
     return open();
@@ -230,12 +250,12 @@ int ZEDController::open() {
 
 SL_InitParameters* ZEDController::getInitParameters() {
 
-    SL_InitParameters* initParams = new SL_InitParameters();
+    SL_InitParameters* initParams = (SL_InitParameters*)malloc(sizeof(SL_InitParameters));
+    if (!initParams) return nullptr;
     memset(initParams, 0, sizeof(SL_InitParameters));
 
     sl::InitParameters initParameters = zed.getInitParameters();
 
-    initParams->camera_fps = initParameters.camera_fps;
     initParams->resolution = (SL_RESOLUTION)initParameters.camera_resolution;
     initParams->camera_fps = initParameters.camera_fps;
     initParams->camera_device_id = camera_ID;
@@ -244,6 +264,7 @@ SL_InitParameters* ZEDController::getInitParameters() {
     initParams->enable_right_side_measure = initParameters.enable_right_side_measure;
     initParams->svo_real_time_mode = initParameters.svo_real_time_mode;
     initParams->depth_mode = (SL_DEPTH_MODE)initParameters.depth_mode;
+    initParams->depth_precision = (SL_DEPTH_PRECISION)initParameters.depth_precision;
     initParams->depth_stabilization = initParameters.depth_stabilization;
     initParams->depth_maximum_distance = initParameters.depth_maximum_distance;
     initParams->depth_minimum_distance = initParameters.depth_minimum_distance;
@@ -259,11 +280,13 @@ SL_InitParameters* ZEDController::getInitParameters() {
     initParams->enable_image_validity_check = initParameters.enable_image_validity_check;
     initParams->maximum_working_resolution.height = initParameters.maximum_working_resolution.height;
     initParams->maximum_working_resolution.width = initParameters.maximum_working_resolution.width;
+    initParams->allow_depth_cuda_graph = initParameters.allow_depth_cuda_graph;
     return initParams;
 }
 
 SL_RuntimeParameters* ZEDController::getRuntimeParameters() {
-    SL_RuntimeParameters* c_runtimeParams = new SL_RuntimeParameters();
+    SL_RuntimeParameters* c_runtimeParams = (SL_RuntimeParameters*)malloc(sizeof(SL_RuntimeParameters));
+    if (!c_runtimeParams) return nullptr;
     memset(c_runtimeParams, 0, sizeof(SL_RuntimeParameters));
 
     sl::RuntimeParameters runtimeParams = zed.getRuntimeParameters();
@@ -277,7 +300,8 @@ SL_RuntimeParameters* ZEDController::getRuntimeParameters() {
 }
 
 SL_PositionalTrackingParameters* ZEDController::getPositionalTrackingParameters() {
-    SL_PositionalTrackingParameters* c_trackingParams = new SL_PositionalTrackingParameters();
+    SL_PositionalTrackingParameters* c_trackingParams = (SL_PositionalTrackingParameters*)malloc(sizeof(SL_PositionalTrackingParameters));
+    if (!c_trackingParams) return nullptr;
     memset(c_trackingParams, 0, sizeof(SL_PositionalTrackingParameters));
 
     sl::PositionalTrackingParameters trackingParams = zed.getPositionalTrackingParameters();
@@ -286,6 +310,7 @@ SL_PositionalTrackingParameters* ZEDController::getPositionalTrackingParameters(
     c_trackingParams->enable_area_memory = trackingParams.enable_area_memory;
     c_trackingParams->enable_imu_fusion = trackingParams.enable_imu_fusion;
     c_trackingParams->enable_pose_smoothing = trackingParams.enable_pose_smoothing;
+    c_trackingParams->compute_preference = (enum SL_COMPUTE_PREFERENCE)trackingParams.compute_preference;
     sl::Translation t = trackingParams.initial_world_transform.getTranslation();
     SL_Vector3 vec;
     vec.x = t.x;
@@ -305,11 +330,14 @@ SL_PositionalTrackingParameters* ZEDController::getPositionalTrackingParameters(
     c_trackingParams->depth_min_range = trackingParams.depth_min_range;
     c_trackingParams->set_gravity_as_origin = trackingParams.set_gravity_as_origin;
     c_trackingParams->mode = (SL_POSITIONAL_TRACKING_MODE)trackingParams.mode;
+    c_trackingParams->enable_localization_only = trackingParams.enable_localization_only;
+    c_trackingParams->enable_2d_ground_mode = trackingParams.enable_2d_ground_mode;
     return c_trackingParams;
 }
 
 SL_StreamingParameters* ZEDController::getStreamingParameters() {
-    SL_StreamingParameters* c_streamingParams = new SL_StreamingParameters();
+    SL_StreamingParameters* c_streamingParams = (SL_StreamingParameters*)malloc(sizeof(SL_StreamingParameters));
+    if (!c_streamingParams) return nullptr;
     memset(c_streamingParams, 0, sizeof(SL_StreamingParameters));
 
     sl::StreamingParameters streaming_params = zed.getStreamingParameters();
@@ -328,24 +356,40 @@ SL_StreamingParameters* ZEDController::getStreamingParameters() {
 
 SL_HealthStatus* ZEDController::getHealthStatus()
 {
-    SL_HealthStatus* c_healthStatus = new SL_HealthStatus();
+    SL_HealthStatus* c_healthStatus = (SL_HealthStatus*)malloc(sizeof(SL_HealthStatus));
+    if (!c_healthStatus) return nullptr;
     memset(c_healthStatus, 0, sizeof(SL_HealthStatus));
 
     sl::HealthStatus health_status = zed.getHealthStatus();
 
-    memcpy(&c_healthStatus, &health_status, sizeof(SL_HealthStatus));
+    c_healthStatus->enabled = health_status.enabled;
+    c_healthStatus->low_image_quality = health_status.low_image_quality;
+    c_healthStatus->low_lighting = health_status.low_lighting;
+    c_healthStatus->low_depth_reliability = health_status.low_depth_reliability;
+    c_healthStatus->low_motion_sensors_reliability = health_status.low_motion_sensors_reliability;
+    c_healthStatus->duplicated_image = health_status.duplicated_image;
 
     return c_healthStatus;
 }
 
 SL_Resolution* ZEDController::getRetrieveImageResolution(SL_Resolution* res)
 {
-    return convertResolution(zed.getRetrieveMeasureResolution(sl::Resolution(res->width, res->height)));
+    const sl::Resolution r = zed.getRetrieveImageResolution(sl::Resolution(res->width, res->height));
+    SL_Resolution* out = (SL_Resolution*)malloc(sizeof(SL_Resolution));
+    if (!out) return nullptr;
+    out->width = r.width;
+    out->height = r.height;
+    return out;
 }
 
 SL_Resolution* ZEDController::getRetrieveMeasureResolution(SL_Resolution* res)
 {
-    return convertResolution(zed.getRetrieveMeasureResolution(sl::Resolution(res->width, res->height)));
+    const sl::Resolution r = zed.getRetrieveMeasureResolution(sl::Resolution(res->width, res->height));
+    SL_Resolution* out = (SL_Resolution*)malloc(sizeof(SL_Resolution));
+    if (!out) return nullptr;
+    out->width = r.width;
+    out->height = r.height;
+    return out;
 }
 
 
@@ -383,6 +427,9 @@ sl::ERROR_CODE ZEDController::enableTracking(SL_PositionalTrackingParameters* tr
         params.depth_min_range = tracking_params->depth_min_range;
         params.set_gravity_as_origin = tracking_params->set_gravity_as_origin;
         params.mode = (sl::POSITIONAL_TRACKING_MODE)tracking_params->mode;
+        params.enable_localization_only = tracking_params->enable_localization_only;
+        params.enable_2d_ground_mode = tracking_params->enable_2d_ground_mode;
+        params.compute_preference = (sl::COMPUTE_PREFERENCE)tracking_params->compute_preference;
         if (area_file_path != nullptr) {
             if (std::string(area_file_path) != "") {
                 params.area_file_path = area_file_path;
@@ -570,12 +617,14 @@ sl::ERROR_CODE ZEDController::getSensorsData(SL_SensorsData* sensorData, int tim
             sensorData->imu.linear_acceleration_convariance.p[i] = tmp_sensor_data.imu.linear_acceleration_covariance.r[i];
             sensorData->imu.orientation_covariance.p[i] = tmp_sensor_data.imu.pose_covariance.r[i];
         }
+        sensorData->imu.effective_rate = tmp_sensor_data.imu.effective_rate;
 
         ///Barometer
         sensorData->barometer.is_available = tmp_sensor_data.barometer.is_available;
         sensorData->barometer.timestamp_ns = tmp_sensor_data.barometer.timestamp;
         sensorData->barometer.pressure = tmp_sensor_data.barometer.pressure;
         sensorData->barometer.relative_altitude = tmp_sensor_data.barometer.relative_altitude;
+        sensorData->barometer.effective_rate = tmp_sensor_data.barometer.effective_rate;
 
         ///Magneto
         sensorData->magnetometer.is_available = tmp_sensor_data.magnetometer.is_available;
@@ -638,12 +687,24 @@ sl::ERROR_CODE ZEDController::getSensorsDataBatch(SL_SensorsData** data)
         {
             int size = sensorsDataBatch.size();
 
-            memset(*data, 0, sizeof(SL_SensorsData) * size);
+            // it belongs to the caller and is released with sl_free().
+            *data = nullptr;
+            if (size <= 0)
+            {
+                isSensorsBatchReady = false;
+                return sl::ERROR_CODE::SUCCESS;
+            }
+
+            SL_SensorsData* batch = (SL_SensorsData*)malloc(sizeof(SL_SensorsData) * size);
+            if (!batch)
+                return sl::ERROR_CODE::FAILURE;
+
+            memset(batch, 0, sizeof(SL_SensorsData) * size);
+            *data = batch;
 
             for (int i = 0; i < size; i++)
             {
-
-                SL_SensorsData* sensorData = data[i];
+                SL_SensorsData* sensorData = &batch[i];
                 sl::SensorsData tmp_sensor_data = sensorsDataBatch[i];
 
                 sensorData->camera_moving_state = (int)tmp_sensor_data.camera_moving_state;
@@ -672,17 +733,19 @@ sl::ERROR_CODE ZEDController::getSensorsDataBatch(SL_SensorsData** data)
                 sensorData->imu.orientation.z = tmp_sensor_data.imu.pose.getOrientation().z;
                 sensorData->imu.orientation.w = tmp_sensor_data.imu.pose.getOrientation().w;
 
-                for (int i = 0; i < 9; i++) {
-                    sensorData->imu.angular_velocity_convariance.p[i] = tmp_sensor_data.imu.angular_velocity_covariance.r[i];
-                    sensorData->imu.linear_acceleration_convariance.p[i] = tmp_sensor_data.imu.linear_acceleration_covariance.r[i];
-                    sensorData->imu.orientation_covariance.p[i] = tmp_sensor_data.imu.pose_covariance.r[i];
+                for (int k = 0; k < 9; k++) {
+                    sensorData->imu.angular_velocity_convariance.p[k] = tmp_sensor_data.imu.angular_velocity_covariance.r[k];
+                    sensorData->imu.linear_acceleration_convariance.p[k] = tmp_sensor_data.imu.linear_acceleration_covariance.r[k];
+                    sensorData->imu.orientation_covariance.p[k] = tmp_sensor_data.imu.pose_covariance.r[k];
                 }
+                sensorData->imu.effective_rate = tmp_sensor_data.imu.effective_rate;
 
                 ///Barometer
                 sensorData->barometer.is_available = tmp_sensor_data.barometer.is_available;
                 sensorData->barometer.timestamp_ns = tmp_sensor_data.barometer.timestamp;
                 sensorData->barometer.pressure = tmp_sensor_data.barometer.pressure;
                 sensorData->barometer.relative_altitude = tmp_sensor_data.barometer.relative_altitude;
+                sensorData->barometer.effective_rate = tmp_sensor_data.barometer.effective_rate;
 
                 ///Magneto
                 sensorData->magnetometer.is_available = tmp_sensor_data.magnetometer.is_available;
@@ -712,8 +775,6 @@ sl::ERROR_CODE ZEDController::getSensorsDataBatch(SL_SensorsData** data)
                 if (tmp_sensor_data.temperature.temperature_map.count(sl::SensorsData::TemperatureData::SENSOR_LOCATION::ONBOARD_RIGHT) > 0)
                     sensorData->temperature.onboard_right_temp = tmp_sensor_data.temperature.temperature_map[sl::SensorsData::TemperatureData::SENSOR_LOCATION::ONBOARD_RIGHT];
 
-                char buffers[256];
-                sprintf(buffers, "internal sensors %f\n", sensorData->temperature.onboard_right_temp);
             }
             // Clear the batch after retrieval
             isSensorsBatchReady = false;
@@ -722,8 +783,6 @@ sl::ERROR_CODE ZEDController::getSensorsDataBatch(SL_SensorsData** data)
         }
         else
         {
-            char buffers[256];
-            sprintf(buffers, "getSensorsDataBatch called but no data available");
             return sl::ERROR_CODE::FAILURE;
         }
     }
@@ -805,7 +864,8 @@ void ZEDController::disableRecording() {
 }
 
 struct SL_RecordingParameters* ZEDController::getRecordingParameters() {
-    SL_RecordingParameters* c_recording_params = new SL_RecordingParameters();
+    SL_RecordingParameters* c_recording_params = (SL_RecordingParameters*)malloc(sizeof(SL_RecordingParameters));
+    if (!c_recording_params) return nullptr;
     memset(c_recording_params, 0, sizeof(SL_RecordingParameters));
 
     sl::RecordingParameters recording_params = zed.getRecordingParameters();
@@ -831,7 +891,8 @@ struct SL_RecordingParameters* ZEDController::getRecordingParameters() {
 
 SL_RecordingStatus* ZEDController::getRecordingStatus() {
     if (!isNull()) {
-        SL_RecordingStatus* c_recording_status = new SL_RecordingStatus();
+        SL_RecordingStatus* c_recording_status = (SL_RecordingStatus*)malloc(sizeof(SL_RecordingStatus));
+        if (!c_recording_status) return nullptr;
         memset(c_recording_status, 0, sizeof(SL_RecordingStatus));
 
         sl::RecordingStatus recStatus = zed.getRecordingStatus();
@@ -843,6 +904,8 @@ SL_RecordingStatus* ZEDController::getRecordingStatus() {
         c_recording_status->is_paused = recStatus.is_paused;
         c_recording_status->is_recording = recStatus.is_recording;
         c_recording_status->status = recStatus.status;
+        c_recording_status->number_frames_ingested = recStatus.number_frames_ingested;
+        c_recording_status->number_frames_encoded = recStatus.number_frames_encoded;
 
         return c_recording_status;
     }
@@ -889,7 +952,11 @@ sl::ERROR_CODE ZEDController::retrieveSVOData(char* key, int nb_data, struct SL_
             {
                 if (idx < nb_data)
                 {
-                    SL_SVOData* svo_data = new SL_SVOData();
+                    // the caller owns this shell and releases it with sl_free().
+                    // The content/key members below are separate caller-owned allocations.
+                    SL_SVOData* svo_data = (SL_SVOData*)malloc(sizeof(SL_SVOData));
+                    if (!svo_data)
+                        break;
                     memset(svo_data, 0, sizeof(SL_SVOData));
                     svo_data->timestamp_ns = sdk_svo_data.second.timestamp_ns;
                     std::string content;
@@ -1282,7 +1349,8 @@ int ZEDController::getPositionalTrackingLandmarks2d(SL_Landmark2D** landmarks, u
 struct SL_PositionalTrackingStatus* ZEDController::getPositionalTrackingStatus()
 {
     if (!isNull()) {
-        SL_PositionalTrackingStatus* tracking_status = new SL_PositionalTrackingStatus();
+        SL_PositionalTrackingStatus* tracking_status = (SL_PositionalTrackingStatus*)malloc(sizeof(SL_PositionalTrackingStatus));
+        if (!tracking_status) return nullptr;
         memset(tracking_status, 0, sizeof(SL_PositionalTrackingStatus));
 
         sl::PositionalTrackingStatus sdk_status = zed.getPositionalTrackingStatus();
@@ -1332,7 +1400,8 @@ SL_CameraParameters convertCamParameters(sl::CameraParameters input) {
 }
 
 SL_CalibrationParameters* ZEDController::getCalibrationParameters(bool raw) {
-    SL_CalibrationParameters* params = new SL_CalibrationParameters();
+    SL_CalibrationParameters* params = (SL_CalibrationParameters*)malloc(sizeof(SL_CalibrationParameters));
+    if (!params) return nullptr;
     memset(params, 0, sizeof(SL_CalibrationParameters));
     if (!isNull()) {
         sl::CalibrationParameters calib_;
@@ -1372,7 +1441,8 @@ SL_SensorParameters convertSensorsParam(sl::SensorParameters input) {
 }
 
 SL_SensorsConfiguration* ZEDController::getSensorsConfiguration() {
-    SL_SensorsConfiguration* params = new SL_SensorsConfiguration();
+    SL_SensorsConfiguration* params = (SL_SensorsConfiguration*)malloc(sizeof(SL_SensorsConfiguration));
+    if (!params) return nullptr;
     memset(params, 0, sizeof(SL_SensorsConfiguration));
     if (!isNull()) {
         sl::SensorsConfiguration sensorConfig;
@@ -1406,14 +1476,18 @@ SL_SensorsConfiguration* ZEDController::getSensorsConfiguration() {
 }
 
 SL_CameraInformation* ZEDController::getCameraInformation(int width, int height) {
-    SL_CameraInformation* params = new SL_CameraInformation();
+    SL_CameraInformation* params = (SL_CameraInformation*)malloc(sizeof(SL_CameraInformation));
+    if (!params) return nullptr;
     memset(params, 0, sizeof(SL_CameraInformation));
 
     sl::CameraInformation sl_camera_info = zed.getCameraInformation(sl::Resolution(width, height));
 
     SL_CameraConfiguration camera_config;
-    camera_config.calibration_parameters = *getCalibrationParameters(false);
-    camera_config.calibration_parameters_raw = *getCalibrationParameters(true);
+    // These nested getters allocate for the caller, and the caller here is us.
+    SL_CalibrationParameters* calib = getCalibrationParameters(false);
+    if (calib) { camera_config.calibration_parameters = *calib; free(calib); }
+    SL_CalibrationParameters* calib_raw = getCalibrationParameters(true);
+    if (calib_raw) { camera_config.calibration_parameters_raw = *calib_raw; free(calib_raw); }
     camera_config.firmware_version = sl_camera_info.camera_configuration.firmware_version;
     camera_config.fps = sl_camera_info.camera_configuration.fps;
 
@@ -1426,7 +1500,8 @@ SL_CameraInformation* ZEDController::getCameraInformation(int width, int height)
     params->camera_model = (SL_MODEL)sl_camera_info.camera_model;
     params->input_type = (SL_INPUT_TYPE)sl_camera_info.input_type;
     params->serial_number = sl_camera_info.serial_number;
-    params->sensors_configuration = *getSensorsConfiguration();
+    SL_SensorsConfiguration* sensors_cfg = getSensorsConfiguration();
+    if (sensors_cfg) { params->sensors_configuration = *sensors_cfg; free(sensors_cfg); }
 
     return params;
 }
@@ -1742,7 +1817,8 @@ void ZEDController::disableSpatialMapping() {
 }
 
 SL_SpatialMappingParameters* ZEDController::getSpatialMappingParameters() {
-    SL_SpatialMappingParameters* c_mappingParams = new SL_SpatialMappingParameters();
+    SL_SpatialMappingParameters* c_mappingParams = (SL_SpatialMappingParameters*)malloc(sizeof(SL_SpatialMappingParameters));
+    if (!c_mappingParams) return nullptr;
     memset(c_mappingParams, 0, sizeof(SL_SpatialMappingParameters));
 
     sl::SpatialMappingParameters mappingParams = zed.getSpatialMappingParameters();
@@ -2128,6 +2204,7 @@ sl::ERROR_CODE ZEDController::enableObjectDetection(SL_ObjectDetectionParameters
     params.filtering_mode = (sl::OBJECT_FILTERING_MODE)obj_params->filtering_mode;
     params.prediction_timeout_s = obj_params->prediction_timeout_s;
     params.enable_segmentation = obj_params->enable_segmentation;
+    params.allow_reduced_precision_inference = obj_params->allow_reduced_precision_inference;
     if (obj_params->max_range > 0)
         params.max_range = obj_params->max_range;
     if (obj_params->fused_objects_group_name != NULL && strlen(obj_params->fused_objects_group_name) > 0)
@@ -2168,8 +2245,13 @@ sl::ERROR_CODE ZEDController::enableBodyTracking(SL_BodyTrackingParameters* body
         params.body_selection = (sl::BODY_KEYPOINTS_SELECTION)body_params->body_selection;
         params.detection_model = (sl::BODY_TRACKING_MODEL)body_params->detection_model;
         params.prediction_timeout_s = body_params->prediction_timeout_s;
+        params.allow_reduced_precision_inference = body_params->allow_reduced_precision_inference;
         if (body_params->max_range > 0)
             params.max_range = body_params->max_range;
+        // SL_BODY_TRACKING_MODEL_GEN reserves 0 for "SDK default" so a
+        // zero-initialized structure keeps following it (the C++ enum starts at GEN_1).
+        if (body_params->model_gen != SL_BODY_TRACKING_MODEL_GEN_DEFAULT)
+            params.model_gen = (sl::BODY_TRACKING_MODEL_GEN)(body_params->model_gen - 1);
 
 #if 0
         sl::BatchParameters batch_parameters;
@@ -2193,7 +2275,8 @@ sl::ERROR_CODE ZEDController::enableBodyTracking(SL_BodyTrackingParameters* body
 }
 
 SL_ObjectDetectionParameters* ZEDController::getObjectDetectionParameters() {
-    SL_ObjectDetectionParameters* c_odParams = new SL_ObjectDetectionParameters();
+    SL_ObjectDetectionParameters* c_odParams = (SL_ObjectDetectionParameters*)malloc(sizeof(SL_ObjectDetectionParameters));
+    if (!c_odParams) return nullptr;
     memset(c_odParams, 0, sizeof(SL_ObjectDetectionParameters));
 
     sl::ObjectDetectionParameters odParams = zed.getObjectDetectionParameters();
@@ -2211,22 +2294,30 @@ SL_ObjectDetectionParameters* ZEDController::getObjectDetectionParameters() {
     c_odParams->detection_model = (SL_OBJECT_DETECTION_MODEL)odParams.detection_model;
     c_odParams->prediction_timeout_s = odParams.prediction_timeout_s;
     c_odParams->instance_module_id = odParams.instance_module_id;
+    c_odParams->allow_reduced_precision_inference = odParams.allow_reduced_precision_inference;
     c_odParams->custom_onnx_dynamic_input_shape.width = odParams.custom_onnx_dynamic_input_shape.width;
     c_odParams->custom_onnx_dynamic_input_shape.height = odParams.custom_onnx_dynamic_input_shape.height;
+    // Both strings belong to the caller too and must be released with sl_free(), like the struct
+    // itself.
     if (odParams.fused_objects_group_name.size() > 0) {
-        c_odParams->fused_objects_group_name = (char*)malloc(odParams.fused_objects_group_name.size() * sizeof(char));
-        strcpy(c_odParams->fused_objects_group_name, odParams.fused_objects_group_name.c_str());
+        const size_t len = odParams.fused_objects_group_name.size();
+        c_odParams->fused_objects_group_name = (char*)malloc(len + 1);
+        if (c_odParams->fused_objects_group_name)
+            memcpy(c_odParams->fused_objects_group_name, odParams.fused_objects_group_name.c_str(), len + 1);
     }
     if (odParams.custom_onnx_file.size() > 0) {
-        c_odParams->custom_onnx_file = (char*)malloc(odParams.custom_onnx_file.size() * sizeof(char));
-        strcpy(c_odParams->custom_onnx_file, odParams.custom_onnx_file.c_str());
+        const size_t len = odParams.custom_onnx_file.size();
+        c_odParams->custom_onnx_file = (char*)malloc(len + 1);
+        if (c_odParams->custom_onnx_file)
+            memcpy(c_odParams->custom_onnx_file, odParams.custom_onnx_file.c_str(), len + 1);
     }
 
     return c_odParams;
 }
 
 SL_BodyTrackingParameters* ZEDController::getBodyTrackingParameters() {
-    SL_BodyTrackingParameters* c_btParams = new SL_BodyTrackingParameters();
+    SL_BodyTrackingParameters* c_btParams = (SL_BodyTrackingParameters*)malloc(sizeof(SL_BodyTrackingParameters));
+    if (!c_btParams) return nullptr;
     memset(c_btParams, 0, sizeof(SL_BodyTrackingParameters));
 
     sl::BodyTrackingParameters btParams = zed.getBodyTrackingParameters();
@@ -2246,6 +2337,11 @@ SL_BodyTrackingParameters* ZEDController::getBodyTrackingParameters() {
     c_btParams->detection_model = (SL_BODY_TRACKING_MODEL)btParams.detection_model;
     c_btParams->prediction_timeout_s = btParams.prediction_timeout_s;
     c_btParams->instance_module_id = btParams.instance_module_id;
+    c_btParams->allow_reduced_precision_inference = btParams.allow_reduced_precision_inference;
+    // Reports the generation that was REQUESTED, never the DEFAULT sentinel: the C++
+    // getter returns the structure given to enableBodyTracking and the resolution is
+    // never written back to it, so a tier that fell back to GEN_1 still reads GEN_2 here.
+    c_btParams->model_gen = (SL_BODY_TRACKING_MODEL_GEN)((int)btParams.model_gen + 1);
 
     return c_btParams;
 }
@@ -2389,6 +2485,11 @@ static void convertObjects(const sl::Objects& in_data,
     out_data->timestamp = in_data.timestamp;
     out_data->nb_objects = in_data.object_list.size();
 
+    const sl::String& group_name = in_data.fused_objects_group_name;
+    const size_t group_name_len = std::min<size_t>(group_name.size(), sizeof(out_data->fused_objects_group_name) - 1);
+    memcpy(out_data->fused_objects_group_name, group_name.c_str(), group_name_len);
+    out_data->fused_objects_group_name[group_name_len] = '\0';
+
     int count = 0;
     for (const sl::ObjectData& p : in_data.object_list) {
         if (count < MAX_NUMBER_OBJECT) {
@@ -2406,6 +2507,7 @@ static void convertObjects(const sl::Objects& in_data,
                 out_data->object_list[count].position_covariance[k] = p.position_covariance[k];
 
             if (p.mask.isInit()) {
+                // Owned by the caller: release with sl_mat_free() once the frame is consumed.
                 sl::Mat* heapMat = new sl::Mat(
                     sl::Resolution(p.mask.getWidth(), p.mask.getHeight()),
                     p.mask.getDataType(),
@@ -2606,6 +2708,7 @@ static void convertBodies(const sl::Bodies& bodies,
                 data->body_list[count].position_covariance[k] = p.position_covariance[k];
 
             if (p.mask.isInit()) {
+                // Owned by the caller: release with sl_mat_free() once the frame is consumed.
                 sl::Mat* heapMat = new sl::Mat(
                     sl::Resolution(p.mask.getWidth(), p.mask.getHeight()),
                     p.mask.getDataType(),

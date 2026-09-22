@@ -161,6 +161,7 @@ SL_FUSION_ERROR_CODE ZEDFusionController::retrieveBodies(struct SL_Bodies* data,
 					data->body_list[count].position_covariance[k] = p.position_covariance[k];
 
 				if (p.mask.isInit()) {
+					// Owned by the caller: release with sl_mat_free() once the frame is consumed.
 					sl::Mat* heapMat = new sl::Mat(
 						sl::Resolution(p.mask.getWidth(), p.mask.getHeight()),
 						p.mask.getDataType(),
@@ -345,6 +346,36 @@ inline SL_InputType getInput(sl::InputType::INPUT_TYPE type, sl::String conf) {
 			input.input_type = SL_INPUT_TYPE_GMSL;
 			break;
 		}
+		case sl::InputType::INPUT_TYPE::MIPI_ID:
+		{
+			int id = atoi(conf.c_str());
+			input.id = id;
+			input.input_type = SL_INPUT_TYPE_MIPI;
+			input.serial_number = 0;
+			break;
+		}
+		case sl::InputType::INPUT_TYPE::MIPI_SERIAL:
+		{
+			int serialNumber = atoi(conf.c_str());
+			input.serial_number = serialNumber;
+			input.input_type = SL_INPUT_TYPE_MIPI;
+			break;
+		}
+		case sl::InputType::INPUT_TYPE::HOLOSCAN_ID:
+		{
+			int id = atoi(conf.c_str());
+			input.id = id;
+			input.input_type = SL_INPUT_TYPE_HOLOSCAN;
+			input.serial_number = 0;
+			break;
+		}
+		case sl::InputType::INPUT_TYPE::HOLOSCAN_SERIAL:
+		{
+			int serialNumber = atoi(conf.c_str());
+			input.serial_number = serialNumber;
+			input.input_type = SL_INPUT_TYPE_HOLOSCAN;
+			break;
+		}
 		case sl::InputType::INPUT_TYPE::USB_SERIAL:
 		{
 			int serialNumber = atoi(conf.c_str());
@@ -520,7 +551,8 @@ SL_POSITIONAL_TRACKING_STATE ZEDFusionController::getPosition(SL_PoseData* poseD
 
 struct SL_FusedPositionalTrackingStatus* ZEDFusionController::getFusedPositionalTrackingStatus()
 {
-	SL_FusedPositionalTrackingStatus* fused_status = new SL_FusedPositionalTrackingStatus();
+	SL_FusedPositionalTrackingStatus* fused_status = (SL_FusedPositionalTrackingStatus*)malloc(sizeof(SL_FusedPositionalTrackingStatus));
+	if (!fused_status) return nullptr;
 	memset(fused_status, 0, sizeof(SL_FusedPositionalTrackingStatus));
 
 	sl::FusedPositionalTrackingStatus sdk_status = fusion.getFusedPositionalTrackingStatus();
