@@ -709,6 +709,14 @@ extern "C" {
             return (SL_ERROR_CODE)sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
     }
 
+    INTERFACE_API SL_ERROR_CODE sl_set_camera_settings_color_matrix(int c_id, enum SL_VIDEO_SETTINGS mode, struct SL_Matrix3f* matrix) {
+        if (ZEDController::get(c_id)->isNull())
+            return (SL_ERROR_CODE)sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
+        if (!matrix)
+            return (SL_ERROR_CODE)sl::ERROR_CODE::INVALID_FUNCTION_PARAMETERS;
+        return (SL_ERROR_CODE)ZEDController::get(c_id)->zed.setCameraSettings((sl::VIDEO_SETTINGS)mode, sl::Matrix3f(matrix->p));
+    }
+
     INTERFACE_API SL_ERROR_CODE sl_get_camera_settings(int c_id, enum SL_VIDEO_SETTINGS mode, int* value) {
         if (!ZEDController::get(c_id)->isNull())
         {
@@ -950,6 +958,13 @@ extern "C" {
             return (int)ZEDController::get(c_id)->setIMUPriorOrientation(rotation);
 
         return -1;
+    }
+
+    INTERFACE_API int sl_ingest_motion_prior(int c_id, struct SL_RelativePoseData* motion_prior) {
+        if (!ZEDController::get(c_id)->isNull())
+            return (int)ZEDController::get(c_id)->ingestMotionPrior(motion_prior);
+        else
+            return (int)sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
     }
 
     /*********************************************** Spatial Mapping  functions ***********************************/
