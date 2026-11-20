@@ -90,6 +90,10 @@ static void copy_init_parameters(sl::InitParameters& sdk_parameters, SL_InitPara
     sdk_parameters.maximum_working_resolution = sl::Resolution(init_parameters->maximum_working_resolution.width, init_parameters->maximum_working_resolution.height);
     sdk_parameters.svo_decryption_key = reinterpret_cast<const char*>(init_parameters->svo_decryption_key);
     sdk_parameters.allow_depth_cuda_graph = init_parameters->allow_depth_cuda_graph;
+    sdk_parameters.depth_compute_device = (sl::DEPTH_COMPUTE_DEVICE)init_parameters->depth_compute_device;
+    sdk_parameters.imu_accelerometer_range = (sl::ACCELEROMETER_RANGE)init_parameters->imu_accelerometer_range;
+    sdk_parameters.imu_gyroscope_range = (sl::GYROSCOPE_RANGE)init_parameters->imu_gyroscope_range;
+    sdk_parameters.imu_sampling_rate = (sl::IMU_SAMPLING_RATE)init_parameters->imu_sampling_rate;
 }
 
 int ZEDController::initFromUSB(SL_InitParameters* params, const unsigned int serial_number, const char* output_file, const char* opt_settings_path, const char* opencv_calib_path) {
@@ -281,6 +285,10 @@ SL_InitParameters* ZEDController::getInitParameters() {
     initParams->maximum_working_resolution.height = initParameters.maximum_working_resolution.height;
     initParams->maximum_working_resolution.width = initParameters.maximum_working_resolution.width;
     initParams->allow_depth_cuda_graph = initParameters.allow_depth_cuda_graph;
+    initParams->depth_compute_device = (SL_DEPTH_COMPUTE_DEVICE)initParameters.depth_compute_device;
+    initParams->imu_accelerometer_range = (SL_ACCELEROMETER_RANGE)initParameters.imu_accelerometer_range;
+    initParams->imu_gyroscope_range = (SL_GYROSCOPE_RANGE)initParameters.imu_gyroscope_range;
+    initParams->imu_sampling_rate = (SL_IMU_SAMPLING_RATE)initParameters.imu_sampling_rate;
     return initParams;
 }
 
@@ -1358,6 +1366,7 @@ struct SL_PositionalTrackingStatus* ZEDController::getPositionalTrackingStatus()
         tracking_status->odometry_status = (enum SL_ODOMETRY_STATUS)sdk_status.odometry_status;
         tracking_status->spatial_memory_status = (enum SL_SPATIAL_MEMORY_STATUS)sdk_status.spatial_memory_status;
         tracking_status->tracking_fusion_status = (enum SL_POSITIONAL_TRACKING_FUSION_STATUS)sdk_status.tracking_fusion_status;
+        tracking_status->relative_pose_fusion_status = (enum SL_RELATIVE_POSE_FUSION_STATUS)sdk_status.relative_pose_fusion_status;
 
         return tracking_status;
     }
@@ -1547,6 +1556,30 @@ sl::ERROR_CODE ZEDController::setIMUPriorOrientation(SL_Quaternion rotation) {
         sl::Translation prior_trans = sl::Translation(0, 0, 0);
         return zed.setIMUPrior(sl::Transform(prior_quat, prior_trans));
 
+    }
+    return sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
+}
+
+sl::ERROR_CODE ZEDController::ingestMotionPrior(struct SL_RelativePoseData* motion_prior) {
+    if (!isNull()) {
+        if (motion_prior == nullptr)
+            return sl::ERROR_CODE::INVALID_FUNCTION_PARAMETERS;
+
+        sl::RelativePoseData data;
+        data.start_timestamp = sl::Timestamp(motion_prior->start_timestamp);
+        data.end_timestamp = sl::Timestamp(motion_prior->end_timestamp);
+        const SL_Transform& motion = motion_prior->motion;
+        data.motion.setTranslation(sl::Translation(motion.translation.x, motion.translation.y, motion.translation.z));
+        data.motion.setOrientation(sl::Orientation(sl::float4(motion.rotation.x, motion.rotation.y, motion.rotation.z, motion.rotation.w)));
+        data.measured_axes = static_cast<sl::POSE_AXIS>(motion_prior->measured_axes);
+        memcpy(data.covariance, motion_prior->covariance, sizeof(data.covariance));
+        data.is_stationary = motion_prior->is_stationary;
+        const SL_Transform& sensor = motion_prior->sensor_transform;
+        data.sensor_transform.setTranslation(sl::Translation(sensor.translation.x, sensor.translation.y, sensor.translation.z));
+        data.sensor_transform.setOrientation(sl::Orientation(sl::float4(sensor.rotation.x, sensor.rotation.y, sensor.rotation.z, sensor.rotation.w)));
+        data.rejection_threshold = motion_prior->rejection_threshold;
+
+        return zed.ingestMotionPrior(data);
     }
     return sl::ERROR_CODE::CAMERA_NOT_INITIALIZED;
 }
